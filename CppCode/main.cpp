@@ -84,10 +84,10 @@ struct Disk {
 			score[block] = sc;
 		}
 	}
-	int max_score_pos = 0; // 价值最大块位置
+	int max_score_pos = 0;  // 价值最大块位置
 	double max_score = -1;  // 价值最大块价值
-	double cur_score = 0;  // 当前位置向前走两个块的价值
-	void Cal_Score() {	   // 计算下一个时刻走一个块的价值
+	double cur_score = 0;   // 当前位置向前走两个块的价值
+	void Cal_Score() {	    // 计算下一个时刻走一个块的价值
 		Cal_Block_Score(timestamp + 1);
 		max_score = -1;
 		int block = -1;
@@ -181,7 +181,7 @@ unordered_set<int> query[MAX_OBJECT_NUM + 1]; // 每个对象的查询
 // ------------------------------------ 全局预处理 ----------------------------------------
 
 void Pre_Process() {
-
+	
 	cout << "OK\n";
 	cout.flush();
 }
