@@ -4,6 +4,18 @@ using namespace std;
 #define MAX_TAG (16)
 #define MAX_DISK_NUM (10)
 #define MAX_DISK_SIZE (16384)
+// #define MAX_DISK_SIZE (5792)
+
+const int DISK_SPLIT_BLOCK = MAX_DISK_SIZE / 35.7;
+const int DISK_SPLIT_1 = DISK_SPLIT_BLOCK * 6;
+const int DISK_SPLIT_2 = DISK_SPLIT_BLOCK * 14;
+const int DISK_SPLIT_3 = DISK_SPLIT_BLOCK * 24.5;
+const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
+const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
+
+#define UPDATE_DISK_SCORE_FREQUENCY (10)
+#define JUMP_FREQUENCY (5)
+
 #define MAX_REQUEST_NUM (30000000)
 #define MAX_OBJECT_NUM (100000)
 #define REP_NUM (3)
@@ -12,8 +24,8 @@ using namespace std;
 #define MAX_EPOCH (50)
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
-// #define BLOCK_SIZE (512)
-#define BLOCK_SIZE (181)
+#define BLOCK_SIZE (512)
+// #define BLOCK_SIZE (181)
 #define BLOCK_NUM (32) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
 
 int T, M, N, V, G;
@@ -45,7 +57,7 @@ bool Random_Appear(int p);				     		   // 判断概率 p% 是否发生
 
 struct Disk {
 	pair<int, int> d[MAX_DISK_SIZE];
-	set<int> space;
+	set<int> space[6];
 	int score[BLOCK_NUM];
 	int head = 0;
 	int siz = 0;
@@ -58,20 +70,8 @@ struct Disk {
 	int size() {
 		return siz;
 	}
-	int last() {
-		return V - siz;
-	}
-	int last(int l, int r) {
-		if (l == 0 && r == V - 1) {
-			return last();
-		} else {
-			//
-			//
-			//
-			//
-			//
-			assert(0);
-		}
+	bool capacity(int obj_size) {
+		return space[obj_size].size() > 0;
 	}
 	void Cal_Block_Score(int time) {
 		for (int block = 0; block < BLOCK_NUM; block++) {
@@ -108,9 +108,8 @@ struct Disk {
 		assert(block != -1);
 		max_score_pos = block * BLOCK_SIZE;
 	}
-	vector<int> Write(int obj_id, int obj_size, int obj_tag) {
-		assert(space.size() >= obj_size);
-		vector<int> write_idx;
+	int Write(int obj_id, int obj_size, int obj_tag) {
+		int write_idx;
 		siz += obj_size;
 
 		// vector<int> er;
@@ -123,15 +122,28 @@ struct Disk {
 		// for (auto t : er) {
 			// 	space.erase(t);
 		// }
+		assert(space[obj_size].size());
+		auto it = space[obj_size].begin();
+		// for (int i = 0; i < obj_size; i++) {
+		// 	if (d[(*it) + i].first != -1) {
+		// 		for (int i = 0; i < obj_size; i++) cerr << d[(*it) + i].first << ' '; cerr << endl;
+		// 	}
+		// 	assert(d[(*it) + i].first == -1);
+		// }
+		for (int i = *it, size = 0; size < obj_size; i++, size++) {
+			d[i] = {obj_id, size};
+		}
+		write_idx = *it;
+		space[obj_size].erase(it);
 		
-		for (auto it = space.begin(); write_idx.size() < obj_size && it != space.end(); ) {
-			auto p = it;
-			it++;
-			assert(d[*p].first == -1);
-			d[*p] = {obj_id, write_idx.size()};
-			write_idx.emplace_back(*p);
-			space.erase(p);
-		}	
+		// for (auto it = space[obj_size].begin(); write_idx.size() < obj_size && it != space[obj_size].end(); ) {
+		// 	auto p = it;
+		// 	it++;
+		// 	assert(d[*p].first == -1);
+		// 	d[*p] = {obj_id, write_idx.size()};
+		// 	write_idx.emplace_back(*p);
+		// 	space[obj_size].erase(p);
+		// }	
 		
 		// for (int i = 0; i < V; i++) {
 		// 	if (write_idx.size() == obj_size) break;
@@ -140,12 +152,10 @@ struct Disk {
 		// 	write_idx.emplace_back(i);
 		// }
 		
-		assert(write_idx.size() == obj_size);
 		return write_idx;
 	}
 	void erase(int erase_idx) {
 		assert(d[erase_idx].first != -1);
-		space.insert(erase_idx);
 		d[erase_idx] = {-1, -1};
 		siz--;
 	}
@@ -165,7 +175,7 @@ Request requests[MAX_REQUEST_NUM + 1];
 
 struct Object {
 	vector<int> bel;
-	vector<int> unit[REP_NUM];
+	int unit[REP_NUM];
 	int size = 0;
 	int tag = -1;
 	bool is_delete = false;
@@ -189,8 +199,20 @@ void Pre_Process() {
 void total_init() {
 	for (int i = 0; i < MAX_DISK_NUM; i++) {
 		disk[i].disk_id = i;
-		for (int j = 0; j < V; j++) {
-			disk[i].space.insert(j);
+		for (int j = 0; j < DISK_SPLIT_1; j++) {
+			disk[i].space[1].insert(j);
+		}
+		for (int j = DISK_SPLIT_1; j < DISK_SPLIT_2 - 1; j += 2) {
+			disk[i].space[2].insert(j);
+		}
+		for (int j = DISK_SPLIT_2; j < DISK_SPLIT_3 - 2; j += 3) {
+			disk[i].space[3].insert(j);
+		}
+		for (int j = DISK_SPLIT_3; j < DISK_SPLIT_4 - 3; j += 4) {
+			disk[i].space[4].insert(j);
+		}
+		for (int j = DISK_SPLIT_4; j < DISK_SPLIT_5 - 4; j += 5) {
+			disk[i].space[5].insert(j);
 		}
 	}
 }
@@ -290,10 +312,12 @@ void Delete_Action() {
 	for (int i = 0; i < n_delete; i++) {
 		int obj_id = delete_id[i];
 		for (int j = 0; j < REP_NUM; j++) {
-			for (int k = 0; k < objects[obj_id].size; k++) {
-				int disk_idx = objects[obj_id].bel[j];
-				int erase_idx = objects[obj_id].unit[j][k];
-				disk[disk_idx].erase(erase_idx);
+			int obj_size = objects[obj_id].size;
+			int disk_id = objects[obj_id].bel[j];
+			int block = objects[obj_id].unit[j];
+			disk[disk_id].space[obj_size].insert(block);
+			for (int size = 0; size < obj_size; size++) {
+				disk[disk_id].erase(block + size);
 			}
 		}
 		objects[obj_id].is_delete = true;
@@ -305,20 +329,20 @@ void Delete_Action() {
 
 // ------------------------------------ 写入 ----------------------------------------
 
-vector<int> hash_write_disk[MAX_DISK_NUM];
+vector<int> random_write_disk[MAX_TAG + 1];
 
 void hash_init() {
-	for (int i = 0; i < N; i++) {
+	for (int i = 1; i <= MAX_TAG; i++) {
 		set<int> set;
 		while (set.size() < REP_NUM) {
 			set.insert(rng() % N);
 		}
 		for (auto disk_id : set) {
-			hash_write_disk[i].emplace_back(disk_id);
+			random_write_disk[i].emplace_back(disk_id);
 		}
 	}
 	// for (int i = 0; i < N; i++) {
-	// 	for (auto t : hash_write_disk[i]) {
+	// 	for (auto t : random_write_disk[i]) {
 	// 		cout << t << ' ';
 	// 	}
 	// 	cout << endl;
@@ -329,23 +353,34 @@ vector<int> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) {
 	static int idx = 0;
 	vector<int> write_disk;
 
+	// 随机分布 -----------------------------------------------------
+	// for (; write_disk.size() < REP_NUM; idx = (idx + 1) % N) {
+	// 	if (find(write_disk.begin(), write_disk.end(), idx) != write_disk.end()) continue;
+	// 	if (!disk[idx].capacity(obj_size)) continue;
+	// 	write_disk.emplace_back(idx);
+	// }
+	// assert(write_disk.size() == REP_NUM);
+	// return write_disk;
+	// ---------------------------------------------------------------
+
 	// size 法，把 size 相同的放到一起，但效果并不好
 	// for (auto disk_id : disk_select[obj_size]) {
-	// 	if (disk[disk_id].last() < obj_size) continue;
+	// 	if (disk[disk_id].capacity(obj_size)) continue;
 	// 	write_disk.emplace_back(disk_id);
 	// }
 
 	// hash 法，把 hash 值相同的放到一起
-	for (auto hash_id : hash_write_disk[obj_tag % N]) {
-		if (disk[hash_id].last() >= obj_size) {
+	for (auto hash_id : random_write_disk[obj_tag]) {
+		if (disk[hash_id].capacity(obj_size)) {
 			write_disk.emplace_back(hash_id);
 		}
 	}
 
 	// 查缺补漏，如果不够 REP_NUM 个再顺序选几个
-	for (; write_disk.size() < REP_NUM; idx = (idx + 1) % N) {
+	for (int cnt = 0; write_disk.size() < REP_NUM; cnt++, idx = (idx + 1) % N) {
+		assert(cnt <= N);
 		if (find(write_disk.begin(), write_disk.end(), idx) != write_disk.end()) continue;
-		if (disk[idx].last() < obj_size) continue;
+		if (!disk[idx].capacity(obj_size)) continue;
 		write_disk.emplace_back(idx);
 	}
 	assert(write_disk.size() == REP_NUM);
@@ -380,26 +415,26 @@ void Write_Action() {
 			// for (auto t : write_disk) {
 			// 	assert(disk[t].last() >= obj_size);
 			// }
-	
+			
 			objects[obj_id].bel = write_disk;
 			objects[obj_id].size = obj_size;
 			objects[obj_id].tag = obj_tag;
 			objects[obj_id].is_delete = false;
-	
+			
 			for (int j = 0; j < REP_NUM; j++) {
 				int disk_idx = write_disk[j];
-				auto write_idx = disk[disk_idx].Write(obj_id, obj_size, obj_tag);
+				int write_idx = disk[disk_idx].Write(obj_id, obj_size, obj_tag);
 				// cout << "obj: " << obj_id << ' ' << obj_size << " WriteDisk: " << disk_idx << " WriteIdx: ";
 				// for (auto t : write_idx) cout << t << " "; cout << endl;
 				objects[obj_id].unit[j] = write_idx;
 			}
-	
+
+			
 			cout << obj_id << "\n";
 			for (int j = 0; j < REP_NUM; j++) {
 				cout << objects[obj_id].bel[j] + 1;
-				assert(objects[obj_id].unit[j].size() == obj_size);
 				for (int k = 0; k < objects[obj_id].size; k++) {
-					cout << " " << objects[obj_id].unit[j][k] + 1;
+					cout << " " << objects[obj_id].unit[j] + k + 1;
 				}
 				cout << "\n";
 			}
@@ -497,7 +532,7 @@ void Move() {
 	// 	cnt = 0;
 	// }
 	vector<int> finish_qid;
-	if (timestamp % 10 == 0) {
+	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
 		for (int i = 0; i < N; i++) {
 			Process(i);
 		}
@@ -514,7 +549,7 @@ void Move() {
 		int step = G;
 
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
-		if (disk[i].cur_score < disk[i].max_score && Random_Appear(10)) {
+		if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY)) {
 			// cnt++;
 			int jump_to = disk[i].max_score_pos;
 			disk[i].head = jump_to;
