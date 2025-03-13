@@ -12,7 +12,8 @@ using namespace std;
 #define MAX_EPOCH (50)
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
-#define BLOCK_SIZE (512)
+// #define BLOCK_SIZE (512)
+#define BLOCK_SIZE (181)
 #define BLOCK_NUM (32) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
 
 int T, M, N, V, G;
@@ -31,11 +32,11 @@ int timestamp = 0; // 全局时间戳
 
 // ------------------------------------ 全局函数声明 ----------------------------------------
 
-double Get_Pos_Score(int disk_id, int pos);  // 获取一个硬盘上一个位置 pos 的得分
-void Pre_Process(); 					     // 对总和输入数据的预处理
-void total_init();						     // 预处理乱七八糟的东西，比如 disk 的余量集合
-void disk_manage_init();				     // 预处理对硬盘空间的分区，还未使用
-bool Random_Appear(int p);				     // 判断概率 p% 是否发生
+double Get_Pos_Score(int disk_id, int pos, int time);  // 获取一个硬盘上一个位置 pos 的得分
+void Pre_Process(); 					     		   // 对总和输入数据的预处理
+void total_init();						     		   // 预处理乱七八糟的东西，比如 disk 的余量集合
+void disk_manage_init();				     		   // 预处理对硬盘空间的分区，还未使用
+bool Random_Appear(int p);				     		   // 判断概率 p% 是否发生
 
 
 
@@ -72,29 +73,40 @@ struct Disk {
 			assert(0);
 		}
 	}
-	void Cal_Score() {
+	void Cal_Block_Score(int time) {
 		for (int block = 0; block < BLOCK_NUM; block++) {
 			int l = block * BLOCK_SIZE;
 			int r = l + BLOCK_SIZE - 1;
 			int sc = 0;
 			for (int i = l; i <= r; i++) {
-				sc += Get_Pos_Score(disk_id, i);
+				sc += Get_Pos_Score(disk_id, i, timestamp);
 			}
 			score[block] = sc;
 		}
 	}
-	int Cal_Max() {
-		Cal_Score();
-		double mx = -1;
+	int max_score_pos = 0; // 价值最大块位置
+	double max_score = -1;  // 价值最大块价值
+	double cur_score = 0;  // 当前位置向前走两个块的价值
+	void Cal_Score() {	   // 计算下一个时刻走一个块的价值
+		Cal_Block_Score(timestamp + 1);
+		max_score = -1;
 		int block = -1;
 		for (int i = 0; i < BLOCK_NUM; i++) {
-			if (score[i] > mx) {
-				mx = score[i];
+			if (score[i] > max_score) {
+				max_score = score[i];
 				block = i;
 			}
 		}
+		cur_score = 0;
+		int i = head;
+		for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
+			cur_score += Get_Pos_Score(disk_id, i, timestamp);
+		}
+		for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
+			cur_score += Get_Pos_Score(disk_id, i, timestamp + 1);
+		}
 		assert(block != -1);
-		return block * BLOCK_SIZE;
+		max_score_pos = block * BLOCK_SIZE;
 	}
 	vector<int> Write(int obj_id, int obj_size, int obj_tag) {
 		assert(space.size() >= obj_size);
@@ -220,12 +232,12 @@ int Predict_Delete_Time(int obj_id) {
 	return predict_delete_time;
 }
 
-double Get_Pos_Score(int disk_id, int pos) {
+double Get_Pos_Score(int disk_id, int pos, int time) {
 	int obj_id = disk[disk_id].d[pos].first;	
 	int obj_size = objects[obj_id].size;
 	double score = 0;
 	for (auto qry : query[obj_id]) {
-		int x = timestamp - requests[qry].query_time;
+		int x = time - requests[qry].query_time;
 		double g = (obj_size + 1) * 0.5;
 		double f;
 		if (x <= 10) {
@@ -461,22 +473,67 @@ void Read_Action() {
 // ------------------------------------ 磁头移动 ----------------------------------------
 
 int Decide_Jump_Pos(int disk_id) {
-	return disk[disk_id].Cal_Max();
+	return disk[disk_id].max_score_pos;
 }
 
+void Process(int i) {
+	disk[i].Cal_Score();
+}
+
+// int cnt = 0;
 void Move() {
+	// if (timestamp % 1800 == 1) {
+	// 	// cerr << "time = " << timestamp << endl;
+	// 	// for (int i = 0; i < N; i++) {
+	// 	// 	for (int j = 0; j < BLOCK_NUM; j++) {
+	// 		// 		cerr << disk[i].score[j] << " ";
+	// 	// 	}
+	// 	// 	cerr << endl;
+	// 	// }
+	// 	cerr << "jump fre = " << 100. * cnt / N / 1800 << "%" << endl;
+	// 	// for (int i = 0; i < N; i++) {
+	// 	// 	cerr << i << ' ' << disk[i].cur_score << ' ' << disk[i].max_score << endl;
+	// 	// }
+	// 	cnt = 0;
+	// }
 	vector<int> finish_qid;
+	if (timestamp % 10 == 0) {
+		for (int i = 0; i < N; i++) {
+			Process(i);
+		}
+		// vector<thread> threads;
+		// for (int i = 0; i < N; i++) {
+		// 	threads.emplace_back(Process, i);
+		// }
+		// for (auto &thread : threads) {
+		// 	thread.join();
+		// }
+	}
 	for (int i = 0; i < N; i++) {
 		string move;
 		int step = G;
-		if (Random_Appear(5) && pre_move[i] != 'j') {
-			int jump_to = Decide_Jump_Pos(i);
+
+		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
+		if (disk[i].cur_score < disk[i].max_score && Random_Appear(10)) {
+			// cnt++;
+			int jump_to = disk[i].max_score_pos;
 			disk[i].head = jump_to;
 			cout << "j " << jump_to + 1 << "\n";
 			pre_move[i] = 'j';
 			pre_cost[i] = 0;
 			continue;
 		}
+
+		// 方案二：随机 5% 概率进行 jump
+		// if (Random_Appear(5) && pre_move[i] != 'j') {
+		// 	// cnt++;
+		// 	int jump_to = Decide_Jump_Pos(i);
+		// 	disk[i].head = jump_to;
+		// 	cout << "j " << jump_to + 1 << "\n";
+		// 	pre_move[i] = 'j';
+		// 	pre_cost[i] = 0;
+		// 	continue;
+		// }
 		while (step) {
 			auto [obj_id, obj_part] = disk[i].d[disk[i].head];
 			int cost = INF;
