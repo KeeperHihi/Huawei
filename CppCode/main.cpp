@@ -1,10 +1,18 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+// #define DEBUG
+
+#ifdef DEBUG
+#define MAX_DISK_SIZE (5792)
+#define BLOCK_SIZE (181)
+#else
+#define MAX_DISK_SIZE (16384)
+#define BLOCK_SIZE (512)
+#endif
+
 #define MAX_TAG (16)
 #define MAX_DISK_NUM (10)
-#define MAX_DISK_SIZE (16384)
-// #define MAX_DISK_SIZE (5792)
 
 const int DISK_SPLIT_BLOCK = MAX_DISK_SIZE / 35.7;
 const int DISK_SPLIT_1 = DISK_SPLIT_BLOCK * 6;
@@ -24,8 +32,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define MAX_EPOCH (50)
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
-#define BLOCK_SIZE (512)
-// #define BLOCK_SIZE (181)
+
 #define BLOCK_NUM (32) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
 
 int T, M, N, V, G;
@@ -329,18 +336,49 @@ void Delete_Action() {
 
 // ------------------------------------ 写入 ----------------------------------------
 
-vector<int> random_write_disk[MAX_TAG + 1];
+vector<vector<int>> random_write_disk;
 
 void hash_init() {
-	for (int i = 1; i <= MAX_TAG; i++) {
-		set<int> set;
-		while (set.size() < REP_NUM) {
-			set.insert(rng() % N);
-		}
-		for (auto disk_id : set) {
-			random_write_disk[i].emplace_back(disk_id);
-		}
-	}
+	int idx = 0;
+	random_write_disk = {
+		{},
+		{3, 6, 1},
+		{4, 3, 6},
+		{7, 4, 9},
+		{5, 0, 2},
+		{8, 4, 5},
+		{8, 5, 9},
+		{1, 4, 6},
+		{4, 3, 6},
+		{3, 6, 5},
+		{7, 9, 1},
+		{7, 9, 1},
+		{0, 2, 8},
+		{7, 0, 2},
+		{0, 1, 2},
+		{5, 0, 2},
+		{8, 7, 9}
+	};
+	// for (int i = 1; i <= MAX_TAG; i++) {
+	// 	for (int j = 0; j < REP_NUM; j++) {
+	// 		random_write_disk[i].emplace_back(idx);
+	// 		idx = (idx + 1) % N;
+	// 	}
+	// 	// set<int> set;
+	// 	// while (set.size() < REP_NUM) {
+	// 	// 	set.insert(rng() % N);
+	// 	// }
+	// 	// for (auto disk_id : set) {
+	// 	// 	random_write_disk[i].emplace_back(disk_id);
+	// 	// }
+	// }
+
+	// for (int i = 1; i <= 16; i++) {
+	// 	for (auto t : random_write_disk[i]) {
+	// 		cerr << t << ' ';
+	// 	}
+	// 	cerr << endl;
+	// }
 	// for (int i = 0; i < N; i++) {
 	// 	for (auto t : random_write_disk[i]) {
 	// 		cout << t << ' ';
@@ -533,16 +571,16 @@ void Move() {
 	// }
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
-		for (int i = 0; i < N; i++) {
-			Process(i);
-		}
-		// vector<thread> threads;
 		// for (int i = 0; i < N; i++) {
-		// 	threads.emplace_back(Process, i);
+		// 	Process(i);
 		// }
-		// for (auto &thread : threads) {
-		// 	thread.join();
-		// }
+		vector<thread> threads;
+		for (int i = 0; i < N; i++) {
+			threads.emplace_back(Process, i);
+		}
+		for (auto &thread : threads) {
+			thread.join();
+		}
 	}
 	for (int i = 0; i < N; i++) {
 		string move;
