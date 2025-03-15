@@ -260,23 +260,23 @@ void total_init() {
 		vector<int> cnt(6);
 		int j = 0;
 		while (j < V) {
-			for (int c = 61; j < V && c--; j++) {
+			for (int c = 94; j < V && c--; j++) {
 				disk[i].space[1].insert(j);
 				cnt[1]++;
 			}
-			for (int c = 41; j + 1 < V && c--; j += 2) {
+			for (int c = 50; j + 1 < V && c--; j += 2) {
 				disk[i].space[2].insert(j);
 				cnt[2]++;
 			}
-			for (int c = 37; j + 2 < V && c--; j += 3) {
+			for (int c = 49; j + 2 < V && c--; j += 3) {
 				disk[i].space[3].insert(j);
 				cnt[3]++;
 			}
-			for (int c = 20; j + 3 < V && c--; j += 4) {
+			for (int c = 26; j + 3 < V && c--; j += 4) {
 				disk[i].space[4].insert(j);
 				cnt[4]++;
 			}
-			for (int c = 9; j + 4 < V && c--; j += 5) {
+			for (int c = 12; j + 4 < V && c--; j += 5) {
 				disk[i].space[5].insert(j);
 				cnt[5]++;
 			}
