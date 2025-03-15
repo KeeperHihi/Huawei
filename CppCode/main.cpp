@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define MAX_DISK_SIZE (5792)
@@ -61,9 +61,8 @@ int timestamp = 0; // 全局时间戳
 double Get_Pos_Score(int disk_id, int pos, int time);  // 获取一个硬盘上一个位置 pos 的得分
 void Pre_Process(); 					     		   // 对总和输入数据的预处理
 void total_init();						     		   // 预处理乱七八糟的东西，比如 disk 的余量集合
-void disk_manage_init();				     		   // 预处理对硬盘空间的分区，还未使用
 bool Random_Appear(int p);				     		   // 判断概率 p% 是否发生
-
+float Simulate(int disk_id, int idx, int time);
 
 
 
@@ -87,6 +86,7 @@ struct Disk {
 		return siz;
 	}
 	bool capacity(int obj_tag, int obj_size, bool is_limit) {
+		// is_limit 代表的是是否要强制这个 obj 放在自己 tag 的位置里
 		if (!is_limit) return space[obj_size].size() > 0;
 		bool cap = 0;
 		for (auto pos : space[obj_size]) {
@@ -211,13 +211,23 @@ Disk disk[MAX_DISK_NUM]; // 硬盘
 struct Request {
 	int query_time = 0;
 	int obj_id = -1;
-	vector<bool> ned;
-	bool is_done = false;
-	void update() {
-		is_done = accumulate(ned.begin(), ned.end(), 0) == ned.size();
+	int ned = 0;
+	int mask = -1;
+	bool is_done() {
+		return ned == mask;
+	}
+	int has_part(int part) {
+		return ned >> part & 1;
+	}
+	void set(int part) {
+		ned |= 1 << part;
+	}
+	void erase(int part) {
+		ned &= ~(1 << part);
 	}
 };
-Request requests[MAX_REQUEST_NUM + 1];
+vector<Request> requests(MAX_REQUEST_NUM + 1); // 使用 vector 是因为静态空间不够了
+
 
 struct Object {
 	vector<int> bel;
@@ -312,23 +322,6 @@ void total_init() {
 	}
 }
 
-void disk_manage_init() {
-	disk_select = {
-		{},
-		{0, 1, 2},
-		{1, 2, 3},
-		{3, 4, 5},
-		{5, 6, 7},
-		{7, 8, 9}
-	};
-	disk_manage = {
-		{},
-		{{0, 0, V - 1}},
-		{{1, 0, V - 1}, {2, 0, V - 1}},
-		{{3, 0, V - 1}, {4, 0, V - 1}, {5, 0, V - 1}},
-		{{6, 0, V - 1}, {7, 0, V - 1}, {8, 0, V - 1}, {9, 0, V - 1}}
-	};
-}
 
 // mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
 mt19937_64 rng(11111111);
@@ -369,7 +362,54 @@ double Get_Pos_Score(int disk_id, int pos, int time) {
 	return score;
 }
 
+float Simulate(int disk_id, int idx, int time) {
+	int step = G;
 
+	char pre_mov = pre_move[disk_id];
+	int pre_cos = pre_cost[disk_id];
+
+	float score = 0;
+	vector<pair<int, int>> change;
+
+	while (step) {
+		auto [obj_id, obj_part] = disk[disk_id].d[idx];
+		int cost = INF;
+		if (pre_mov == 'r') {
+			cost = max(16, (int)ceil(pre_cos * 0.8));
+		} else {
+			cost = 64;
+		}
+		if (step < cost) {
+			break;
+		}
+		bool is_hit = false;
+		for (auto it = query[obj_id].begin(); it != query[obj_id].end(); it++) {
+			int qry = *it;
+			assert(!requests[qry].is_done());
+			bool has = requests[qry].has_part(obj_part);
+			if (has) continue;
+			is_hit = true;
+			change.push_back({qry, obj_part});
+			requests[qry].set(obj_part);
+			if (requests[qry].is_done()) {
+				score += Get_Pos_Score(disk_id, idx, time);
+			}
+		}
+		if (is_hit) {
+			pre_mov = 'r';
+			step -= cost;
+		} else {
+			pre_mov = 'p';
+			step--;
+		}
+		pre_cos = cost;
+		idx = (idx + 1) % V;
+	}
+	for (auto [qry, obj_part] : change) {
+		requests[qry].erase(obj_part);
+	}
+	return score;
+}
 
 
 
@@ -390,7 +430,7 @@ void Delete_Action() {
 	for (int i = 0; i < n_delete; i++) {
 		int obj_id = delete_id[i];
 		for (auto query_idx : query[obj_id]) {
-			if (requests[query_idx].is_done == false) {
+			if (requests[query_idx].is_done() == false) {
 				n_abort++;
 				aborts.emplace_back(query_idx);
 			}
@@ -482,6 +522,7 @@ void hash_init() {
 
 vector<pair<int, int>> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) {
 	static int idx = 0;
+	// select 用位表示选过的 disk
 	int select = 0;
 	vector<pair<int, int>> write_disk;
 
@@ -631,8 +672,8 @@ void Read_Action() {
 		requests[qry_id] = {
 			timestamp,
 			obj_id,
-			vector<bool>(objects[obj_id].size, false),
-			false
+			0,
+			(1 << objects[obj_id].size) - 1
 		};
 		query[obj_id].insert(qry_id);
 	}
@@ -720,14 +761,13 @@ void Move() {
 				int qry = *it;
 				auto prev = it;
 				it++;
-				assert(!requests[qry].is_done);
-				// if (requests[qry].is_done) continue; // 798254419 / 818602371 = 97.5% 的 is_done
-				bool has = requests[qry].ned[obj_part];
+				assert(!requests[qry].is_done());
+				// if (requests[qry].is_done()) continue; // 798254419 / 818602371 = 97.5% 的 is_done()
+				bool has = requests[qry].has_part(obj_part);
 				if (has) continue;
 				is_hit = true;
-				requests[qry].ned[obj_part] = true;
-				requests[qry].update();
-				if (requests[qry].is_done) {
+				requests[qry].set(obj_part);
+				if (requests[qry].is_done()) {
 					query[obj_id].erase(prev);
 					finish_qid.emplace_back(qry);
 				}
@@ -786,9 +826,7 @@ int main() {
 	cout.tie(nullptr);
 
 	cin >> T >> M >> N >> V >> G;
-	// assert(N == 10);
 	hash_init();
-	disk_manage_init();
 	total_init();
 	
 	int batch_num = (T + FRE_PER_SLICING - 1) / FRE_PER_SLICING;
