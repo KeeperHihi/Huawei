@@ -1,12 +1,12 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define MAX_DISK_SIZE (5792)
-#define BLOCK_SIZE (181)
-#define BLOCK_NUM (32) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
+#define BLOCK_SIZE (362)
+#define BLOCK_NUM (16) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
 #else
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_SIZE (512)
@@ -25,7 +25,7 @@ const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
 const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
-#define UPDATE_DISK_SCORE_FREQUENCY (10)
+#define UPDATE_DISK_SCORE_FREQUENCY (2)
 #define JUMP_FREQUENCY (5)
 
 #define MAX_REQUEST_NUM (30000000)
@@ -58,11 +58,11 @@ int timestamp = 0; // 全局时间戳
 
 // ------------------------------------ 全局函数声明 ----------------------------------------
 
-double Get_Pos_Score(int disk_id, int pos, int time);  // 获取一个硬盘上一个位置 pos 的得分
+float Get_Pos_Score(int disk_id, int pos, int time);  // 获取一个硬盘上一个位置 pos 的得分
 void Pre_Process(); 					     		   // 对总和输入数据的预处理
 void total_init();						     		   // 预处理乱七八糟的东西，比如 disk 的余量集合
 bool Random_Appear(int p);				     		   // 判断概率 p% 是否发生
-float Simulate(int disk_id, int idx, int time);
+pair<float, int> Simulate(int disk_id, int idx, int time, char &pre_mov, int &pre_cos);
 
 
 
@@ -73,7 +73,7 @@ struct Disk {
 	set<int> space[MAX_SIZE + 1];
 	vector<int> has_tag;
 	int color_tag[MAX_DISK_SIZE];
-	int score[BLOCK_NUM];
+	float score[BLOCK_NUM];
 	int head = 0;
 	int siz = 0;
 	int disk_id = 0;
@@ -101,8 +101,13 @@ struct Disk {
 	void Cal_Block_Score() {
 		for (int block = 0; block < BLOCK_NUM; block++) {
 			int i = block * BLOCK_SIZE;
-			int sc = 0;
+			float sc = 0;
+			char pre_mov = 'j';
+			int pre_cos = 0;
 			for (int t = timestamp + 1; t < timestamp + PREDICT; t++) {
+				// auto [score, idx] = Simulate(disk_id, i, t, pre_mov, pre_cos);
+				// i = idx;
+				// sc += score;
 				for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
 					sc += Get_Pos_Score(disk_id, i, t);
 				}
@@ -111,7 +116,7 @@ struct Disk {
 
 			// int l = block * BLOCK_SIZE;
 			// int r = l + BLOCK_SIZE - 1;
-			// int sc = 0;
+			// float sc = 0;
 			// for (int i = l; i <= r; i++) {
 			// 	sc += Get_Pos_Score(disk_id, i, timestamp);
 			// }
@@ -133,7 +138,12 @@ struct Disk {
 		}
 		cur_score = 0;
 		int i = head;
+		char pre_mov = pre_move[disk_id];
+		int pre_cos = pre_cost[disk_id];
 		for (int t = timestamp; t < timestamp + PREDICT; t++) {
+			// auto [score, idx] = Simulate(disk_id, i, t, pre_mov, pre_cos);
+			// i = idx;
+			// cur_score += score;
 			for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
 				cur_score += Get_Pos_Score(disk_id, i, t);
 			}
@@ -216,7 +226,7 @@ struct Request {
 	bool is_done() {
 		return ned == mask;
 	}
-	int has_part(int part) {
+	bool has_part(int part) {
 		return ned >> part & 1;
 	}
 	void set(int part) {
@@ -260,23 +270,23 @@ void total_init() {
 		vector<int> cnt(6);
 		int j = 0;
 		while (j < V) {
-			for (int c = 94; j < V && c--; j++) {
+			for (int c = 95; j < V && c--; j++) {
 				disk[i].space[1].insert(j);
 				cnt[1]++;
 			}
-			for (int c = 50; j + 1 < V && c--; j += 2) {
+			for (int c = 60; j + 1 < V && c--; j += 2) {
 				disk[i].space[2].insert(j);
 				cnt[2]++;
 			}
-			for (int c = 49; j + 2 < V && c--; j += 3) {
+			for (int c = 52; j + 2 < V && c--; j += 3) {
 				disk[i].space[3].insert(j);
 				cnt[3]++;
 			}
-			for (int c = 26; j + 3 < V && c--; j += 4) {
+			for (int c = 29; j + 3 < V && c--; j += 4) {
 				disk[i].space[4].insert(j);
 				cnt[4]++;
 			}
-			for (int c = 12; j + 4 < V && c--; j += 5) {
+			for (int c = 13; j + 4 < V && c--; j += 5) {
 				disk[i].space[5].insert(j);
 				cnt[5]++;
 			}
@@ -342,14 +352,14 @@ int Predict_Delete_Time(int obj_id) {
 	return predict_delete_time;
 }
 
-double Get_Pos_Score(int disk_id, int pos, int time) {
+float Get_Pos_Score(int disk_id, int pos, int time) {
 	int obj_id = disk[disk_id].d[pos].first;	
 	int obj_size = objects[obj_id].size;
-	double score = 0;
+	float score = 0;
 	for (auto qry : query[obj_id]) {
 		int x = time - requests[qry].query_time;
-		double g = (obj_size + 1) * 0.5;
-		double f;
+		float g = (obj_size + 1) * 0.5;
+		float f;
 		if (x <= 10) {
 			f = -0.005 * x + 1;
 		} else if (x <= 105) {
@@ -362,15 +372,14 @@ double Get_Pos_Score(int disk_id, int pos, int time) {
 	return score;
 }
 
-float Simulate(int disk_id, int idx, int time) {
-	int step = G;
 
-	char pre_mov = pre_move[disk_id];
-	int pre_cos = pre_cost[disk_id];
+// 注意这个函数绝对不能放到多线程里用！！！！！！！！！
+pair<float, int> Simulate(int disk_id, int idx, int time, char &pre_mov, int &pre_cos) {
+	int step = G;
 
 	float score = 0;
 	vector<pair<int, int>> change;
-
+	
 	while (step) {
 		auto [obj_id, obj_part] = disk[disk_id].d[idx];
 		int cost = INF;
@@ -385,14 +394,24 @@ float Simulate(int disk_id, int idx, int time) {
 		bool is_hit = false;
 		for (auto it = query[obj_id].begin(); it != query[obj_id].end(); it++) {
 			int qry = *it;
-			assert(!requests[qry].is_done());
+			if (requests[qry].is_done()) continue;
 			bool has = requests[qry].has_part(obj_part);
 			if (has) continue;
 			is_hit = true;
 			change.push_back({qry, obj_part});
 			requests[qry].set(obj_part);
 			if (requests[qry].is_done()) {
-				score += Get_Pos_Score(disk_id, idx, time);
+				int x = time - requests[qry].query_time;
+				double g = (objects[obj_id].size + 1) * 0.5;
+				double f;
+				if (x <= 10) {
+					f = -0.005 * x + 1;
+				} else if (x <= 105) {
+					f = -0.01 * x + 1.05;
+				} else {
+					f = 0.;
+				}
+				score += f * g;
 			}
 		}
 		if (is_hit) {
@@ -408,7 +427,7 @@ float Simulate(int disk_id, int idx, int time) {
 	for (auto [qry, obj_part] : change) {
 		requests[qry].erase(obj_part);
 	}
-	return score;
+	return {score, idx};
 }
 
 
@@ -691,7 +710,7 @@ void Process(int i) {
 	disk[i].Cal_Score();
 }
 
-// int cnt = 0;
+int cnt = 0;
 void Move() {
 	// if (timestamp % 1800 == 1) {
 	// 	// cerr << "time = " << timestamp << endl;
@@ -724,9 +743,20 @@ void Move() {
 		string move;
 		int step = G;
 
+		// 方案零：每次更新完考虑跳跃
+		// if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0 && disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY)) {
+		// 	cnt++;
+		// 	int jump_to = disk[i].max_score_pos;
+		// 	disk[i].head = jump_to;
+		// 	cout << "j " << jump_to + 1 << "\n";
+		// 	pre_move[i] = 'j';
+		// 	pre_cost[i] = 0;
+		// 	continue;
+		// }
+
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
 		if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY)) {
-			// cnt++;
+			cnt++;
 			int jump_to = disk[i].max_score_pos;
 			disk[i].head = jump_to;
 			cout << "j " << jump_to + 1 << "\n";
