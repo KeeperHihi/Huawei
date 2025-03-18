@@ -1,16 +1,16 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define MAX_DISK_SIZE (5792)
-#define BLOCK_SIZE (362)
-#define BLOCK_NUM (16) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
+#define BLOCK_NUM (32)
+const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
 #define MAX_DISK_SIZE (16384)
-#define BLOCK_SIZE (512)
-#define BLOCK_NUM (32) // BLOCK_NUM = MAX_DISK_SIZE / BLOCK_SIZE
+#define BLOCK_NUM (32)
+const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #endif
 
 #define MAX_TAG (16)
@@ -25,7 +25,7 @@ const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
 const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
-#define UPDATE_DISK_SCORE_FREQUENCY (2)
+#define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define JUMP_FREQUENCY (5)
 
 #define MAX_REQUEST_NUM (30000000)
@@ -58,7 +58,7 @@ int timestamp = 0; // 全局时间戳
 
 // ------------------------------------ 全局函数声明 ----------------------------------------
 
-float Get_Pos_Score(int disk_id, int pos, int time);  // 获取一个硬盘上一个位置 pos 的得分
+float Get_Pos_Score(int disk_id, int pos, int time);   // 获取一个硬盘上一个位置 pos 的得分
 void Pre_Process(); 					     		   // 对总和输入数据的预处理
 void total_init();						     		   // 预处理乱七八糟的东西，比如 disk 的余量集合
 bool Random_Appear(int p);				     		   // 判断概率 p% 是否发生
@@ -264,6 +264,7 @@ void Pre_Process() {
 
 // 60 : 40 : 35 : 18 : 8     sum = 161
 void total_init() {
+	vector<int> best_w = {95, 60, 52, 29, 13};
 	vector<int> count(17);
 	for (int i = 0; i < MAX_DISK_NUM; i++) {
 		disk[i].disk_id = i;
@@ -726,6 +727,7 @@ void Move() {
 	// 	// }
 	// 	cnt = 0;
 	// }
+	// 有 bug，！！！！！
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
 		// for (int i = 0; i < N; i++) {
