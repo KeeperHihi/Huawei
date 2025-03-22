@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define MAX_DISK_SIZE (5792)
@@ -25,7 +25,7 @@ const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
 const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
-#define UPDATE_DISK_SCORE_FREQUENCY (10)
+#define UPDATE_DISK_SCORE_FREQUENCY (2)
 #define JUMP_FREQUENCY (5)
 
 #define MAX_REQUEST_NUM (30000000)
@@ -39,7 +39,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define PREDICT (2)
 
 
-vector<int> query_times = {0, 655440, 446193, 675307, 453136, 656267, 437673, 358938, 498815, 678137, 454897, 450530, 623525, 361323, 714684, 464401, 672907};
+vector<int> query_times = {0, 2136, 1048, 2276, 1996, 1208, 799, 2048, 1695, 782, 1679, 923, 1876, 764, 1421, 824, 2349};
 
 
 int T, M, N, V, G;
@@ -257,7 +257,18 @@ unordered_set<int> query[MAX_OBJECT_NUM + 1]; // 每个对象的查询
 // ------------------------------------ 全局预处理 ----------------------------------------
 
 void Pre_Process() {
-	
+	// int batch_num = (T + FRE_PER_SLICING - 1) / FRE_PER_SLICING;
+	// vector<int> tag(MAX_TAG + 1);
+	// for (int i = 1; i <= MAX_TAG; i++) {
+	// 	for (int j = 1; j <= batch_num; j++) {
+	// 		cerr << fre_write[i][j] << ' ';
+	// 		tag[i] += fre_write[i][j];
+	// 	}
+	// 	cerr << endl;
+	// }
+	// for (int i = 1; i <= MAX_TAG; i++) {
+	// 	cerr << tag[i] << ", ";
+	// }
 	cout << "OK\n";
 	cout.flush();
 }
@@ -490,22 +501,22 @@ void hash_init() {
 	int idx = 0;
 	random_write_disk = {
 		{},
-		{3, 6, 1},
-		{4, 3, 6},
-		{7, 4, 9},
-		{5, 0, 2},
-		{8, 4, 5},
-		{8, 5, 9},
-		{1, 4, 6},
-		{4, 3, 6},
-		{3, 6, 5},
-		{7, 9, 1},
-		{7, 9, 1},
-		{0, 2, 8},
-		{7, 0, 2},
-		{0, 1, 2},
-		{5, 0, 2},
-		{8, 7, 9}
+		{0, 1, 5, },
+		{3, 8, 2, },
+		{7, 4, 9, },
+		{8, 7, 9, },
+		{5, 8, 2, },
+		{7, 9, 3, },
+		{2, 4, 6, },
+		{0, 1, 3, },
+		{3, 6, 5, },
+		{2, 6, 5, },
+		{4, 0, 1, },
+		{7, 4, 9, },
+		{6, 5, 8, },
+		{0, 1, 2, },
+		{6, 5, 8, },
+		{8, 3, 6, },
 	};
 	for (int i = 1; i <= MAX_TAG; i++) {
 		for (auto disk_id : random_write_disk[i]) {
