@@ -279,29 +279,34 @@ void total_init() {
 	vector<int> count(17);
 	for (int i = 0; i < MAX_DISK_NUM; i++) {
 		disk[i].disk_id = i;
-		vector<int> cnt(6);
-		int j = 0;
-		while (j < V) {
-			for (int c = 95; j < V && c--; j++) {
-				disk[i].space[1].insert(j);
-				cnt[1]++;
-			}
-			for (int c = 60; j + 1 < V && c--; j += 2) {
-				disk[i].space[2].insert(j);
-				cnt[2]++;
-			}
-			for (int c = 52; j + 2 < V && c--; j += 3) {
-				disk[i].space[3].insert(j);
-				cnt[3]++;
-			}
-			for (int c = 29; j + 3 < V && c--; j += 4) {
-				disk[i].space[4].insert(j);
-				cnt[4]++;
-			}
-			for (int c = 13; j + 4 < V && c--; j += 5) {
-				disk[i].space[5].insert(j);
-				cnt[5]++;
-			}
+		vector<int> count(6);
+		// int j = 0;
+		// while (j < V) {
+		// 	for (int c = best_w[0]; j < V && c--; j++) {
+		// 		disk[i].space[1].insert(j);
+		// 		count[1]++;
+		// 	}
+		// 	for (int c = best_w[1]; j + 1 < V && c--; j += 2) {
+		// 		disk[i].space[2].insert(j);
+		// 		count[2]++;
+		// 	}
+		// 	for (int c = best_w[2]; j + 2 < V && c--; j += 3) {
+		// 		disk[i].space[3].insert(j);
+		// 		count[3]++;
+		// 	}
+		// 	for (int c = best_w[3]; j + 3 < V && c--; j += 4) {
+		// 		disk[i].space[4].insert(j);
+		// 		count[4]++;
+		// 	}
+		// 	for (int c = best_w[4]; j + 4 < V && c--; j += 5) {
+		// 		disk[i].space[5].insert(j);
+		// 		count[5]++;
+		// 	}
+		// }
+
+		int divide = 0;
+		for (int j = 0; j < MAX_SIZE; j++) {
+			divide += (j + 1) * best_w[j];
 		}
 
 		// 染色，对应位置只能存储对应 tag
@@ -310,9 +315,47 @@ void total_init() {
 			tot += query_times[tag];
 		}
 		int idx = 0;
+		// cerr << "tot = " << tot << endl;
 		for (auto tag : disk[i].has_tag) {
-			for (int cnt = 1. * query_times[tag] / tot * V; idx < V && cnt--; idx++) {
-				count[tag]++;
+			int len = 1. * query_times[tag] / tot * V;
+			vector<int> cnt(MAX_SIZE);
+			for (int j = 0; j < MAX_SIZE; j++) {
+				cnt[j] = 1. * best_w[j] / divide * len;
+			}
+			int pre_idx = idx; 
+			// if (i == 0) {
+			// 	cerr << "i = 0, " << best_w[0] << ' ' << divide << ' ' << len << endl;
+			// 	for (int j = 0; j < MAX_SIZE; j++) {
+			// 		cerr << cnt[j] << ' ';
+			// 	}
+			// 	cerr << endl;
+			// }
+
+			// 把 size 大的放在前面，能提升一点点
+			for (int c = cnt[4]; idx + 4 < min(V, pre_idx + len) && c--; idx += 5) {
+				disk[i].space[5].insert(idx);
+				count[5]++;
+			}
+			for (int c = cnt[3]; idx + 3 < min(V, pre_idx + len) && c--; idx += 4) {
+				disk[i].space[4].insert(idx);
+				count[4]++;
+			}
+			for (int c = cnt[2]; idx + 2 < min(V, pre_idx + len) && c--; idx += 3) {
+				disk[i].space[3].insert(idx);
+				count[3]++;
+			}
+			for (int c = cnt[1]; idx + 1 < min(V, pre_idx + len) && c--; idx += 2) {
+				disk[i].space[2].insert(idx);
+				count[2]++;
+			}
+			for (int c = cnt[0]; idx < min(V, pre_idx + len) && c--; idx++) {
+				disk[i].space[1].insert(idx);
+				count[1]++;
+			}
+			
+
+			idx = pre_idx;
+			for (int cnt = len; idx < V && cnt--; idx++) {
 				disk[i].color_tag[idx] = tag;
 			}
 		}
@@ -320,26 +363,26 @@ void total_init() {
 		// 理论比例：972 648 567 291 129
 		// for (int j = 0; j < DISK_SPLIT_1; j++) {
 		// 	disk[i].space[1].insert(j);
-		// 	cnt[1]++;
+		// 	count[1]++;
 		// }
 		// for (int j = DISK_SPLIT_1; j < DISK_SPLIT_2 - 1; j += 2) {
 		// 	disk[i].space[2].insert(j);
-		// 	cnt[2]++;
+		// 	count[2]++;
 		// }
 		// for (int j = DISK_SPLIT_2; j < DISK_SPLIT_3 - 2; j += 3) {
 		// 	disk[i].space[3].insert(j);
-		// 	cnt[3]++;
+		// 	count[3]++;
 		// }
 		// for (int j = DISK_SPLIT_3; j < DISK_SPLIT_4 - 3; j += 4) {
 		// 	disk[i].space[4].insert(j);
-		// 	cnt[4]++;
+		// 	count[4]++;
 		// }
 		// for (int j = DISK_SPLIT_4; j < DISK_SPLIT_5 - 4; j += 5) {
 		// 	disk[i].space[5].insert(j);
-		// 	cnt[5]++;
+		// 	count[5]++;
 		// }
 		// for (int i = 1; i <= 5; i++) {
-		// 	cerr << cnt[i] << " \n"[i == 5];
+		// 	cerr << count[i] << " \n"[i == 5];
 		// }
 	}
 }
@@ -496,6 +539,7 @@ void Delete_Action() {
 // ------------------------------------ 写入 ----------------------------------------
 
 vector<vector<int>> random_write_disk;
+vector<vector<int>> second_choice;
 
 void hash_init() {
 	int idx = 0;
@@ -518,6 +562,20 @@ void hash_init() {
 		{6, 5, 8, },
 		{8, 3, 6, },
 	};
+	second_choice.resize(MAX_TAG + 1);
+	for (int i = 1; i <= MAX_TAG; i++) {
+		set<int> oth;
+		while (oth.size() < REP_NUM) {
+			int x = rng() % 10;
+			if (oth.count(x) || find(random_write_disk[i].begin(), random_write_disk[i].end(), x) != random_write_disk[i].end()) {
+				continue;
+			}
+			oth.insert(x);
+		}
+		for (auto hash_id : oth) {
+			second_choice[i].push_back(hash_id);
+		}
+	}
 	for (int i = 1; i <= MAX_TAG; i++) {
 		for (auto disk_id : random_write_disk[i]) {
 			disk[disk_id].has_tag.emplace_back(i);
@@ -577,6 +635,13 @@ vector<pair<int, int>> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) 
 	for (auto hash_id : random_write_disk[obj_tag]) {
 		if (disk[hash_id].capacity(obj_tag, obj_size, 1)) {
 			write_disk.push_back({hash_id, 1});
+			select |= 1 << hash_id;
+		}
+	}
+
+	for (auto hash_id : second_choice[obj_tag]) {
+		if (write_disk.size() < REP_NUM && disk[hash_id].capacity(obj_tag, obj_size, 0)) {
+			write_disk.push_back({hash_id, 0});
 			select |= 1 << hash_id;
 		}
 	}
