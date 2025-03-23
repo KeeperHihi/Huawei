@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define MAX_DISK_SIZE (5792)
@@ -275,7 +275,7 @@ void Pre_Process() {
 
 // 60 : 40 : 35 : 18 : 8     sum = 161
 void total_init() {
-	vector<int> best_w = {95, 60, 52, 29, 13};
+	vector<int> best_w = {212, 149, 132, 68, 28};
 	vector<int> count(17);
 	for (int i = 0; i < MAX_DISK_NUM; i++) {
 		disk[i].disk_id = i;
