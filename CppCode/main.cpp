@@ -4,10 +4,12 @@ using namespace std;
 #define DEBUG
 
 #ifdef DEBUG
+#define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5792)
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
+#define UPDATE_DISK_SCORE_FREQUENCY (2)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
@@ -25,7 +27,6 @@ const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
 const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
-#define UPDATE_DISK_SCORE_FREQUENCY (2)
 #define JUMP_FREQUENCY (5)
 
 #define MAX_REQUEST_NUM (30000000)
