@@ -1,3 +1,10 @@
+// 不再严格划分 size，有连续空位置就存放
+// sublime 里那段代码要设计一种算法更加合理地分配空间，不能让 16 号出现在所有盘里
+// 存储的时候先存 size 大的，再存 size 小的，石头 -> 沙子 -> 水
+
+
+
+
 #include <bits/stdc++.h>
 using namespace std;
 
