@@ -8,7 +8,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -46,6 +46,10 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define INF (1000000000)
 #define PREDICT (2)
 
+#define DROP_SCORE (0)
+#define MAX_DROP_NUM (1000000)
+
+#define SEED (11111111)
 
 vector<int> query_times = {0, 2136, 1048, 2276, 1996, 1208, 799, 2048, 1695, 782, 1679, 923, 1876, 764, 1421, 824, 2349};
 
@@ -397,7 +401,7 @@ void total_init() {
 
 
 // mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
-mt19937_64 rng(11111111);
+mt19937_64 rng(SEED);
 bool Random_Appear(int p) {
 	return rng() % 100 + 1 <= p;
 }
@@ -796,6 +800,7 @@ void Process(int i) {
 }
 
 int cnt = 0;
+int drop = 0;
 void Move() {
 	// if (timestamp % 1800 == 1) {
 	// 	// cerr << "time = " << timestamp << endl;
@@ -811,7 +816,23 @@ void Move() {
 	// 	// }
 	// 	cnt = 0;
 	// }
-	// 有 bug，！！！！！
+	// if (timestamp % 1800 == 1) {
+	// 	// cerr << "time = " << timestamp << endl;
+	// 	// for (int i = 0; i < N; i++) {
+	// 	// 	for (int j = 0; j < BLOCK_NUM; j++) {
+	// 		// 		cerr << disk[i].score[j] << " ";
+	// 	// 	}
+	// 	// 	cerr << endl;
+	// 	// }
+	// 	// cerr << "drop = " << 100. * drop / N / 1800 << "%" << endl;
+	// 	cerr << "drop = " << drop / 1800. / N << endl;
+	// 	// for (int i = 0; i < N; i++) {
+	// 	// 	cerr << i << ' ' << disk[i].cur_score << ' ' << disk[i].max_score << endl;
+	// 	// }
+	// 	cnt = 0;
+	// }
+	
+	
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
 		// for (int i = 0; i < N; i++) {
@@ -825,7 +846,13 @@ void Move() {
 			thread.join();
 		}
 	}
-	for (int i = 0; i < N; i++) {
+	vector<int> drop_num(N);
+	vector<int> pos(N);
+	iota(pos.begin(), pos.end(), 0);
+	shuffle(pos.begin(), pos.end(), rng);
+	vector<string> moves(N);
+	// for (int i = 0; i < N; i++) {
+	for (auto i : pos) {
 		string move;
 		int step = G;
 
@@ -845,22 +872,12 @@ void Move() {
 			cnt++;
 			int jump_to = disk[i].max_score_pos;
 			disk[i].head = jump_to;
-			cout << "j " << jump_to + 1 << "\n";
+			moves[i] = "j " + to_string(jump_to + 1);
 			pre_move[i] = 'j';
 			pre_cost[i] = 0;
 			continue;
 		}
-
-		// 方案二：随机 5% 概率进行 jump
-		// if (Random_Appear(5) && pre_move[i] != 'j') {
-		// 	// cnt++;
-		// 	int jump_to = Decide_Jump_Pos(i);
-		// 	disk[i].head = jump_to;
-		// 	cout << "j " << jump_to + 1 << "\n";
-		// 	pre_move[i] = 'j';
-		// 	pre_cost[i] = 0;
-		// 	continue;
-		// }
+		
 		while (step) {
 			auto [obj_id, obj_part] = disk[i].d[disk[i].head];
 			int cost = INF;
@@ -872,6 +889,24 @@ void Move() {
 			if (step < cost) {
 				break;
 			}
+
+			if (drop_num[i] < MAX_DROP_NUM) {
+				float score = Get_Pos_Score(i, disk[i].head, timestamp);
+				if (score <= DROP_SCORE) {
+					move += 'p';
+					pre_move[i] = 'p';
+					pre_cost[i] = 0;
+					step--;
+					disk[i].head = (disk[i].head + 1) % V;
+					
+					if (query[obj_id].size()) {
+						drop_num[i]++;
+						drop++;
+					}
+					continue;
+				}
+			}
+			
 			bool is_hit = false;
 			for (auto it = query[obj_id].begin(); it != query[obj_id].end(); ) {
 				int qry = *it;
@@ -900,7 +935,10 @@ void Move() {
 			disk[i].head = (disk[i].head + 1) % V;
 		}
 		move += '#';
-		cout << move << "\n";
+		moves[i] = move;
+	}
+	for (int i = 0; i < N; i++) {
+		cout << moves[i] << "\n";
 	}
 	cout << finish_qid.size() << "\n";
 	for (auto finish : finish_qid) {
