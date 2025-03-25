@@ -8,7 +8,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -47,7 +47,6 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define PREDICT (2)
 
 #define DROP_SCORE (0)
-#define MAX_DROP_NUM (1000000)
 #define DECIDE_CONTINUE_READ (10)
 
 #define SEED (11111111)
@@ -860,7 +859,7 @@ bool decide_continue_read(int disk_id) {
 		} else {
 			cost = 64;
 		}
-		if (!query[obj_id].empty()) {
+		if (Get_Pos_Score(disk_id, idx, timestamp) > DROP_SCORE) {
 			no += cost;
 			p_cost = cost;
 			p_move = 'r';
@@ -991,21 +990,19 @@ void Move() {
 				continue;
 			}
 
-			if (drop_num[i] < MAX_DROP_NUM) {
-				float score = Get_Pos_Score(i, disk[i].head, timestamp);
-				if (score <= DROP_SCORE) {
-					move += 'p';
-					pre_move[i] = 'p';
-					pre_cost[i] = 0;
-					step--;
-					disk[i].head = (disk[i].head + 1) % V;
-					
-					if (query[obj_id].size()) {
-						drop_num[i]++;
-						drop++;
-					}
-					continue;
+			float score = Get_Pos_Score(i, disk[i].head, timestamp);
+			if (score <= DROP_SCORE) {
+				move += 'p';
+				pre_move[i] = 'p';
+				pre_cost[i] = 0;
+				step--;
+				disk[i].head = (disk[i].head + 1) % V;
+				
+				if (query[obj_id].size()) {
+					drop_num[i]++;
+					drop++;
 				}
+				continue;
 			}
 			
 			bool is_hit = read(i);
