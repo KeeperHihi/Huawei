@@ -16,7 +16,7 @@ using namespace std;
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
-#define UPDATE_DISK_SCORE_FREQUENCY (2)
+#define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
@@ -48,11 +48,13 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 
 #define DROP_SCORE (0)
 #define MAX_DROP_NUM (1000000)
+#define DECIDE_CONTINUE_READ (10)
 
 #define SEED (11111111)
 
 vector<int> query_times = {0, 2136, 1048, 2276, 1996, 1208, 799, 2048, 1695, 782, 1679, 923, 1876, 764, 1421, 824, 2349};
 
+vector<vector<vector<pair<int, int>>>> priority_pos(MAX_TAG + 1, vector<vector<pair<int, int>>>(MAX_SIZE + 1));
 
 int T, M, N, V, G;
 int fre_del[MAX_TAG + 1][MAX_EPOCH];
@@ -97,9 +99,10 @@ struct Disk {
 	int size() {
 		return siz;
 	}
-	bool capacity(int obj_tag, int obj_size, bool is_limit) {
+	bool capacity(int obj_tag, int obj_size, int is_limit) {
 		// is_limit 代表的是是否要强制这个 obj 放在自己 tag 的位置里
-		if (!is_limit) return space[obj_size].size() > 0;
+		if (is_limit == -2) return space[obj_size].size() > 0;
+		assert(is_limit == -1);
 		bool cap = 0;
 		for (auto pos : space[obj_size]) {
 			if (color_tag[pos] == obj_tag) {
@@ -163,9 +166,26 @@ struct Disk {
 		assert(block != -1);
 		max_score_pos = block * BLOCK_SIZE;
 	}
-	int Write(int obj_id, int obj_size, int obj_tag, bool is_limit) {
+	int Write(int obj_id, int obj_size, int obj_tag, int is_limit) {
+		/*
+		is_limit:
+		-1: 限制必须找到当前颜色
+		-2: 不限制颜色
+		0~V-1: 直接放到对应位置上去
+		*/
 		int write_idx;
 		siz += obj_size;
+
+		if (is_limit >= 0) {
+			write_idx = is_limit;
+			for (int i = write_idx, size = 0; size < obj_size; i++, size++) {
+				d[i] = {obj_id, size};
+			}
+			write_idx = write_idx;
+			assert(space[obj_size].count(write_idx));
+			space[obj_size].erase(write_idx);
+			return write_idx;
+		}
 
 		// vector<int> er;
 		// for (auto it = space.begin(); write_idx.size() < obj_size; it++) {
@@ -179,7 +199,7 @@ struct Disk {
 		// }
 		assert(space[obj_size].size());
 		auto it = space[obj_size].begin();
-		while (is_limit && it != space[obj_size].end() && color_tag[*it] != obj_tag) {
+		while (is_limit == -1 && it != space[obj_size].end() && color_tag[*it] != obj_tag) {
 			it++;
 		}
 		// if (it == space[obj_size].end()) {
@@ -534,8 +554,10 @@ void Delete_Action() {
 		int obj_id = delete_id[i];
 		for (int j = 0; j < REP_NUM; j++) {
 			int obj_size = objects[obj_id].size;
+			int obj_tag = objects[obj_id].tag;
 			int disk_id = objects[obj_id].bel[j];
 			int block = objects[obj_id].unit[j];
+			// priority_pos[obj_tag][obj_size].push_back({disk_id, block});
 			disk[disk_id].space[obj_size].insert(block);
 			for (int size = 0; size < obj_size; size++) {
 				disk[disk_id].erase(block + size);
@@ -645,15 +667,15 @@ vector<pair<int, int>> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) 
 
 	// hash 法，把 hash 值相同的放到一起
 	for (auto hash_id : random_write_disk[obj_tag]) {
-		if (disk[hash_id].capacity(obj_tag, obj_size, 1)) {
-			write_disk.push_back({hash_id, 1});
+		if (disk[hash_id].capacity(obj_tag, obj_size, -1)) {
+			write_disk.push_back({hash_id, -1});
 			select |= 1 << hash_id;
 		}
 	}
 
 	for (auto hash_id : second_choice[obj_tag]) {
-		if (write_disk.size() < REP_NUM && disk[hash_id].capacity(obj_tag, obj_size, 0)) {
-			write_disk.push_back({hash_id, 0});
+		if (write_disk.size() < REP_NUM && disk[hash_id].capacity(obj_tag, obj_size, -2)) {
+			write_disk.push_back({hash_id, -2});
 			select |= 1 << hash_id;
 		}
 	}
@@ -662,8 +684,8 @@ vector<pair<int, int>> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) 
 	for (int cnt = 0; write_disk.size() < REP_NUM; cnt++, idx = (idx + 1) % N) {
 		assert(cnt <= N);
 		if (select >> idx & 1) continue;
-		if (!disk[idx].capacity(obj_tag, obj_size, 0)) continue;
-		write_disk.push_back({idx, 0});
+		if (!disk[idx].capacity(obj_tag, obj_size, -2)) continue;
+		write_disk.push_back({idx, -2});
 	}
 	assert(write_disk.size() == REP_NUM);
 	return write_disk;
@@ -676,7 +698,16 @@ vector<pair<int, int>> Decide_Write_disk(int obj_id, int obj_size, int obj_tag) 
 
 
 
-
+vector<pair<int, int>> Get_Priority_Disk(int obj_tag, int obj_size) {
+	vector<pair<int, int>> write_disk;
+	assert(priority_pos[obj_tag][obj_size].size() >= 3 && priority_pos[obj_tag][obj_size].size() % 3 == 0);
+	for (int i = 0; i < 3; i++) {
+		auto [disk_id, pos] = priority_pos[obj_tag][obj_size].back();
+		priority_pos[obj_tag][obj_size].pop_back();
+		write_disk.push_back({disk_id, pos});
+	}
+	return write_disk;
+}
 
 void Write_Action() {
 	int n_write;
@@ -689,15 +720,31 @@ void Write_Action() {
 	}
 
 	// 简单把所有相同 tag 的先放到一起存储，后续具体放在哪里由 Decide_Write_Disk 来考虑
+	static int tag = 1;
 	for (int obj_tag = 1; obj_tag <= MAX_TAG; obj_tag++) {
 		auto &vec = tag_vec[obj_tag];
 		for (auto [obj_id, obj_size] : vec) {
-			auto write_disk = Decide_Write_disk(obj_id, obj_size, obj_tag);
+			vector<pair<int, int>> write_disk;
+			write_disk = Decide_Write_disk(obj_id, obj_size, obj_tag);
+			// if (!priority_pos[obj_tag][obj_size].empty()) {
+			// 	write_disk = Get_Priority_Disk(obj_tag, obj_size);
+			// } else {
+			// 	for (int cnt = MAX_TAG; cnt--; tag = (tag % MAX_TAG) + 1) {
+			// 		if (!priority_pos[tag][obj_size].empty()) {
+			// 			write_disk = Get_Priority_Disk(tag, obj_size);
+			// 			break;
+			// 		}
+			// 	}
+			// 	if (write_disk.empty()) {
+			// 		write_disk = Decide_Write_disk(obj_id, obj_size, obj_tag);
+			// 	}
+			// }
+			
 			// assert(write_disk.size() == REP_NUM);
 			// for (auto t : write_disk) {
 			// 	assert(disk[t].last() >= obj_size);
 			// }
-			
+
 			for (auto [disk_id, is_limit] : write_disk) {
 				objects[obj_id].bel.push_back(disk_id);
 			}
@@ -799,40 +846,61 @@ void Process(int i) {
 	disk[i].Cal_Score();
 }
 
+bool decide_continue_read(int disk_id) {
+	int idx = disk[disk_id].head;
+	int yes = 0;
+	int no = 0;
+	char p_move = pre_move[disk_id];
+	int p_cost = pre_cost[disk_id];
+	for (int cnt = DECIDE_CONTINUE_READ; cnt--; idx = (idx + 1) % V) {
+		auto [obj_id, obj_part] = disk[disk_id].d[idx];
+		int cost = INF;
+		if (p_move == 'r') {
+			cost = max(16, (int)ceil(p_cost * 0.8));
+		} else {
+			cost = 64;
+		}
+		if (!query[obj_id].empty()) {
+			no += cost;
+			p_cost = cost;
+			p_move = 'r';
+		} else {
+			no += 1;
+			p_cost = 0;
+			p_move = 'p';
+		}
+	}
+	idx = disk[disk_id].head;
+	p_move = pre_move[disk_id];
+	p_cost = pre_cost[disk_id];
+	for (int cnt = DECIDE_CONTINUE_READ; cnt--; idx = (idx + 1) % V) {
+		auto [obj_id, obj_part] = disk[disk_id].d[idx];
+		int cost = INF;
+		if (p_move == 'r') {
+			cost = max(16, (int)ceil(p_cost * 0.8));
+		} else {
+			cost = 64;
+		}
+		yes += cost;
+		p_cost = cost;
+		p_move = 'r';
+	}
+	return yes < no;	
+}
+
 int cnt = 0;
 int drop = 0;
+int continue_cnt = 0;
+
+void show(string name, int &cnt) {
+	if (timestamp % 1800 == 1) {
+		cerr << name << " = " << 1. * cnt / N / 1800 << endl;
+		cnt = 0;
+	}
+}
+
 void Move() {
-	// if (timestamp % 1800 == 1) {
-	// 	// cerr << "time = " << timestamp << endl;
-	// 	// for (int i = 0; i < N; i++) {
-	// 	// 	for (int j = 0; j < BLOCK_NUM; j++) {
-	// 		// 		cerr << disk[i].score[j] << " ";
-	// 	// 	}
-	// 	// 	cerr << endl;
-	// 	// }
-	// 	cerr << "jump fre = " << 100. * cnt / N / 1800 << "%" << endl;
-	// 	// for (int i = 0; i < N; i++) {
-	// 	// 	cerr << i << ' ' << disk[i].cur_score << ' ' << disk[i].max_score << endl;
-	// 	// }
-	// 	cnt = 0;
-	// }
-	// if (timestamp % 1800 == 1) {
-	// 	// cerr << "time = " << timestamp << endl;
-	// 	// for (int i = 0; i < N; i++) {
-	// 	// 	for (int j = 0; j < BLOCK_NUM; j++) {
-	// 		// 		cerr << disk[i].score[j] << " ";
-	// 	// 	}
-	// 	// 	cerr << endl;
-	// 	// }
-	// 	// cerr << "drop = " << 100. * drop / N / 1800 << "%" << endl;
-	// 	cerr << "drop = " << drop / 1800. / N << endl;
-	// 	// for (int i = 0; i < N; i++) {
-	// 	// 	cerr << i << ' ' << disk[i].cur_score << ' ' << disk[i].max_score << endl;
-	// 	// }
-	// 	cnt = 0;
-	// }
-	
-	
+	// show("continue_fre", continue_cnt);
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
 		// for (int i = 0; i < N; i++) {
@@ -851,6 +919,28 @@ void Move() {
 	iota(pos.begin(), pos.end(), 0);
 	shuffle(pos.begin(), pos.end(), rng);
 	vector<string> moves(N);
+
+	auto read = [&](int disk_id) -> bool {
+		auto [obj_id, obj_part] = disk[disk_id].d[disk[disk_id].head];
+		bool is_hit = false;
+		for (auto it = query[obj_id].begin(); it != query[obj_id].end(); ) {
+			int qry = *it;
+			auto prev = it;
+			it++;
+			assert(!requests[qry].is_done());
+			// if (requests[qry].is_done()) continue; // 798254419 / 818602371 = 97.5% 的 is_done()
+			bool has = requests[qry].has_part(obj_part);
+			if (has) continue;
+			is_hit = true;
+			requests[qry].set(obj_part);
+			if (requests[qry].is_done()) {
+				query[obj_id].erase(prev);
+				finish_qid.emplace_back(qry);
+			}
+		}
+		return is_hit;
+	};
+	
 	// for (int i = 0; i < N; i++) {
 	for (auto i : pos) {
 		string move;
@@ -890,6 +980,17 @@ void Move() {
 				break;
 			}
 
+			if (decide_continue_read(i)) {
+				continue_cnt++;
+				read(i);
+				move += 'r';
+				step -= cost;
+				pre_cost[i] = cost;
+				pre_move[i] = move.back();
+				disk[i].head = (disk[i].head + 1) % V;
+				continue;
+			}
+
 			if (drop_num[i] < MAX_DROP_NUM) {
 				float score = Get_Pos_Score(i, disk[i].head, timestamp);
 				if (score <= DROP_SCORE) {
@@ -907,22 +1008,7 @@ void Move() {
 				}
 			}
 			
-			bool is_hit = false;
-			for (auto it = query[obj_id].begin(); it != query[obj_id].end(); ) {
-				int qry = *it;
-				auto prev = it;
-				it++;
-				assert(!requests[qry].is_done());
-				// if (requests[qry].is_done()) continue; // 798254419 / 818602371 = 97.5% 的 is_done()
-				bool has = requests[qry].has_part(obj_part);
-				if (has) continue;
-				is_hit = true;
-				requests[qry].set(obj_part);
-				if (requests[qry].is_done()) {
-					query[obj_id].erase(prev);
-					finish_qid.emplace_back(qry);
-				}
-			}
+			bool is_hit = read(i);
 			if (is_hit) {
 				move += 'r';
 				step -= cost;
