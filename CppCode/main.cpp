@@ -9,7 +9,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -103,16 +103,42 @@ struct Disk {
 		return siz;
 	}
 	bool capacity(int obj_tag, int obj_size, int is_limit) {
-		// is_limit 代表的是是否要强制这个 obj 放在自己 tag 的位置里
-		if (is_limit == -2) return space[obj_size].size() > 0;
-		assert(is_limit == -1);
 		bool cap = 0;
-		for (auto pos : space[obj_size]) {
-			if (color_tag[pos] == obj_tag) {
+		if (is_limit == -1) {
+			for (int i = 0; i < V; i++) {
+				if (color_tag[i] != obj_tag || d[i].first != -1) continue;
+				bool ok = 1;
+				for (int j = i + 1; j < i + obj_size; j++) {
+					if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
+				}	
+				if (!ok) continue;
+				cap = 1;
+				break;
+			}
+		} else {
+			assert(is_limit == -2);
+			for (int i = 0; i < V; i++) {
+				if (d[i].first != -1) continue;
+				bool ok = 1;
+				for (int j = i + 1; j < i + obj_size; j++) {
+					if (d[j].first != -1) ok = 0;
+				}	
+				if (!ok) continue;
 				cap = 1;
 				break;
 			}
 		}
+
+		// is_limit 代表的是是否要强制这个 obj 放在自己 tag 的位置里
+		// if (is_limit == -2) return space[obj_size].size() > 0;
+		// assert(is_limit == -1);
+		// bool cap = 0;
+		// for (auto pos : space[obj_size]) {
+		// 	if (color_tag[pos] == obj_tag) {
+		// 		cap = 1;
+		// 		break;
+		// 	}
+		// }
 		return cap;
 	}
 
@@ -190,65 +216,58 @@ struct Disk {
 				d[i] = {obj_id, size};
 			}
 			write_idx = write_idx;
-			assert(space[obj_size].count(write_idx));
-			space[obj_size].erase(write_idx);
+			// assert(space[obj_size].count(write_idx));
+			// space[obj_size].erase(write_idx);
 			return write_idx;
 		}
 
-		// vector<int> er;
-		// for (auto it = space.begin(); write_idx.size() < obj_size; it++) {
-			// 	assert(d[*it].first == -1);
-			// 	d[*it] = {obj_id, write_idx.size()};
-		// 	write_idx.emplace_back(*it);
-		// 	er.emplace_back(*it);
-		// }	
-		// for (auto t : er) {
-			// 	space.erase(t);
-		// }
-		assert(space[obj_size].size());
-		auto it = space[obj_size].begin();
-		while (is_limit == -1 && it != space[obj_size].end() && color_tag[*it] != obj_tag) {
-			it++;
+		if (is_limit == -1) {
+			for (int i = 0; i < V; i++) {
+				if (color_tag[i] != obj_tag || d[i].first != -1) continue;
+				bool ok = 1;
+				for (int j = i + 1; j < i + obj_size; j++) {
+					if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
+				}	
+				if (!ok) continue;
+				write_idx = i;
+				break;
+			}
+		} else {
+			assert(is_limit == -2);
+			for (int i = 0; i < V; i++) {
+				if (d[i].first != -1) continue;
+				bool ok = 1;
+				for (int j = i + 1; j < i + obj_size; j++) {
+					if (d[j].first != -1) ok = 0;
+				}	
+				if (!ok) continue;
+				write_idx = i;
+				break;
+			}
 		}
-		// if (it == space[obj_size].end()) {
-		// 	cerr << timestamp << endl;
-		// 	cerr << obj_id << ' ' << obj_size << ' ' << obj_tag << endl;
-		// 	cerr << disk_id << endl;
-		// 	cerr << space[obj_size].size() << endl;
-		// 	for (auto t : space[obj_size]) {
-		// 		cerr << t << ' ' << color_tag[t] << endl;
-		// 	}
-		// }
-		assert(it != space[obj_size].end());
-		// for (int i = 0; i < obj_size; i++) {
-		// 	if (d[(*it) + i].first != -1) {
-		// 		for (int i = 0; i < obj_size; i++) cerr << d[(*it) + i].first << ' '; cerr << endl;
-		// 	}
-		// 	assert(d[(*it) + i].first == -1);
-		// }
-		for (int i = *it, size = 0; size < obj_size; i++, size++) {
+		assert(write_idx != -1);
+
+		for (int i = write_idx, size = 0; size < obj_size; i++, size++) {
 			d[i] = {obj_id, size};
 		}
-		write_idx = *it;
-		space[obj_size].erase(it);
-		
-		// for (auto it = space[obj_size].begin(); write_idx.size() < obj_size && it != space[obj_size].end(); ) {
-		// 	auto p = it;
-		// 	it++;
-		// 	assert(d[*p].first == -1);
-		// 	d[*p] = {obj_id, write_idx.size()};
-		// 	write_idx.emplace_back(*p);
-		// 	space[obj_size].erase(p);
-		// }	
-		
-		// for (int i = 0; i < V; i++) {
-		// 	if (write_idx.size() == obj_size) break;
-		// 	if (d[i].first != -1) continue;
-		// 	d[i] = {obj_id, write_idx.size()};
-		// 	write_idx.emplace_back(i);
-		// }
 		
 		return write_idx;
+
+
+		// assert(space[obj_size].size());
+		// auto it = space[obj_size].begin();
+		// while (is_limit == -1 && it != space[obj_size].end() && color_tag[*it] != obj_tag) {
+		// 	it++;
+		// }
+		// assert(it != space[obj_size].end());
+		
+		// for (int i = *it, size = 0; size < obj_size; i++, size++) {
+		// 	d[i] = {obj_id, size};
+		// }
+		// write_idx = *it;
+		// space[obj_size].erase(it);
+		
+		// return write_idx;
 	}
 	void erase(int erase_idx) {
 		assert(d[erase_idx].first != -1);
@@ -358,10 +377,10 @@ void total_init() {
 		// cerr << "tot = " << tot << endl;
 		for (auto tag : disk[i].has_tag) {
 			int len = 1. * query_times[tag] / tot * V;
-			vector<int> cnt(MAX_SIZE);
-			for (int j = 0; j < MAX_SIZE; j++) {
-				cnt[j] = 1. * best_w[j] / divide * len;
-			}
+			// vector<int> cnt(MAX_SIZE);
+			// for (int j = 0; j < MAX_SIZE; j++) {
+			// 	cnt[j] = 1. * best_w[j] / divide * len;
+			// }
 			int pre_idx = idx; 
 			// if (i == 0) {
 			// 	cerr << "i = 0, " << best_w[0] << ' ' << divide << ' ' << len << endl;
@@ -372,26 +391,26 @@ void total_init() {
 			// }
 
 			// 把 size 大的放在前面，能提升一点点
-			for (int c = cnt[4]; idx + 4 < min(V, pre_idx + len) && c--; idx += 5) {
-				disk[i].space[5].insert(idx);
-				count[5]++;
-			}
-			for (int c = cnt[3]; idx + 3 < min(V, pre_idx + len) && c--; idx += 4) {
-				disk[i].space[4].insert(idx);
-				count[4]++;
-			}
-			for (int c = cnt[2]; idx + 2 < min(V, pre_idx + len) && c--; idx += 3) {
-				disk[i].space[3].insert(idx);
-				count[3]++;
-			}
-			for (int c = cnt[1]; idx + 1 < min(V, pre_idx + len) && c--; idx += 2) {
-				disk[i].space[2].insert(idx);
-				count[2]++;
-			}
-			for (int c = cnt[0]; idx < min(V, pre_idx + len) && c--; idx++) {
-				disk[i].space[1].insert(idx);
-				count[1]++;
-			}
+			// for (int c = cnt[4]; idx + 4 < min(V, pre_idx + len) && c--; idx += 5) {
+			// 	disk[i].space[5].insert(idx);
+			// 	count[5]++;
+			// }
+			// for (int c = cnt[3]; idx + 3 < min(V, pre_idx + len) && c--; idx += 4) {
+			// 	disk[i].space[4].insert(idx);
+			// 	count[4]++;
+			// }
+			// for (int c = cnt[2]; idx + 2 < min(V, pre_idx + len) && c--; idx += 3) {
+			// 	disk[i].space[3].insert(idx);
+			// 	count[3]++;
+			// }
+			// for (int c = cnt[1]; idx + 1 < min(V, pre_idx + len) && c--; idx += 2) {
+			// 	disk[i].space[2].insert(idx);
+			// 	count[2]++;
+			// }
+			// for (int c = cnt[0]; idx < min(V, pre_idx + len) && c--; idx++) {
+			// 	disk[i].space[1].insert(idx);
+			// 	count[1]++;
+			// }
 			
 
 			idx = pre_idx;
@@ -589,7 +608,7 @@ void Delete_Action() {
 			int disk_id = objects[obj_id].bel[j];
 			int block = objects[obj_id].unit[j];
 			// priority_pos[obj_tag][obj_size].push_back({disk_id, block});
-			disk[disk_id].space[obj_size].insert(block);
+			// disk[disk_id].space[obj_size].insert(block);
 			for (int size = 0; size < obj_size; size++) {
 				disk[disk_id].erase(block + size);
 			}
@@ -627,10 +646,11 @@ void hash_init() {
 		{6, 5, 8, },
 		{8, 3, 6, },
 	};
+	// 每个 second_choice 有 3 个 盘块
 	second_choice.resize(MAX_TAG + 1);
 	for (int i = 1; i <= MAX_TAG; i++) {
 		set<int> oth;
-		while (oth.size() < REP_NUM + 1) {
+		while (oth.size() < REP_NUM) {
 			int x = rng() % 10;
 			if (oth.count(x) || find(random_write_disk[i].begin(), random_write_disk[i].end(), x) != random_write_disk[i].end()) {
 				continue;
