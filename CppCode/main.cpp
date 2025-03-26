@@ -630,7 +630,7 @@ void hash_init() {
 	second_choice.resize(MAX_TAG + 1);
 	for (int i = 1; i <= MAX_TAG; i++) {
 		set<int> oth;
-		while (oth.size() < REP_NUM) {
+		while (oth.size() < REP_NUM + 1) {
 			int x = rng() % 10;
 			if (oth.count(x) || find(random_write_disk[i].begin(), random_write_disk[i].end(), x) != random_write_disk[i].end()) {
 				continue;
