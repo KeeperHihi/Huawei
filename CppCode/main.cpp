@@ -2,13 +2,14 @@
 // sublime 里那段代码要设计一种算法更加合理地分配空间，不能让 16 号出现在所有盘里
 // 存储的时候先存 size 大的，再存 size 小的，石头 -> 沙子 -> 水
 
-
+// cur_score 必须每一轮都计算！不然这个分数就是扯淡
+// 上线段树维护 score 信息，每 UPDATE_DISK_SCORE_FREQUENCY 更新一次，直接 init
 
 
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
