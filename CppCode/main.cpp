@@ -8,7 +8,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -16,7 +16,7 @@ using namespace std;
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
-#define UPDATE_DISK_SCORE_FREQUENCY (10)
+#define UPDATE_DISK_SCORE_FREQUENCY (2)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (32)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
@@ -90,6 +90,9 @@ struct Disk {
 	int head = 0;
 	int siz = 0;
 	int disk_id = 0;
+	int max_score_pos = 0;  // 价值最大块位置
+	double max_score = -1;  // 价值最大块价值
+	double cur_score = 0;   // 当前位置向前走 PREDICT 个块的价值
 	Disk() {
 		for (int i = 0; i < MAX_DISK_SIZE; i++) {
 			d[i] = {-1, -1};
@@ -110,6 +113,34 @@ struct Disk {
 			}
 		}
 		return cap;
+	}
+
+	void Cal_Current_Score() {
+		cur_score = 0;
+		int i = head;
+		char pre_mov = pre_move[disk_id];
+		int pre_cos = pre_cost[disk_id];
+		for (int t = timestamp; t < timestamp + PREDICT; t++) {
+			// auto [score, idx] = Simulate(disk_id, i, t, pre_mov, pre_cos);
+			// i = idx;
+			// cur_score += score;
+			for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
+				cur_score += Get_Pos_Score(disk_id, i, t);
+			}
+		}
+	}
+
+	void Cal_Max_Score() {
+		max_score = -1;
+		int block = -1;
+		for (int i = 0; i < BLOCK_NUM; i++) {
+			if (score[i] > max_score) {
+				max_score = score[i];
+				block = i;
+			}
+		}
+		assert(block != -1);
+		max_score_pos = block * BLOCK_SIZE;
 	}
 	
 	void Cal_Block_Score() {
@@ -137,33 +168,10 @@ struct Disk {
 			// score[block] = sc;
 		}
 	}
-	int max_score_pos = 0;  // 价值最大块位置
-	double max_score = -1;  // 价值最大块价值
-	double cur_score = 0;   // 当前位置向前走 PREDICT 个块的价值
-	void Cal_Score() {	    // 计算下一个时刻走 PREDICT - 1 个块的价值
+	void Cal_Score() {	    // 计算走 PREDICT - 1 个块的价值
 		Cal_Block_Score();
-		max_score = -1;
-		int block = -1;
-		for (int i = 0; i < BLOCK_NUM; i++) {
-			if (score[i] > max_score) {
-				max_score = score[i];
-				block = i;
-			}
-		}
-		cur_score = 0;
-		int i = head;
-		char pre_mov = pre_move[disk_id];
-		int pre_cos = pre_cost[disk_id];
-		for (int t = timestamp; t < timestamp + PREDICT; t++) {
-			// auto [score, idx] = Simulate(disk_id, i, t, pre_mov, pre_cos);
-			// i = idx;
-			// cur_score += score;
-			for (int cnt = BLOCK_SIZE; cnt--; i = (i + 1) % V) {
-				cur_score += Get_Pos_Score(disk_id, i, t);
-			}
-		}
-		assert(block != -1);
-		max_score_pos = block * BLOCK_SIZE;
+		Cal_Max_Score();
+		Cal_Current_Score();
 	}
 	int Write(int obj_id, int obj_size, int obj_tag, int is_limit) {
 		/*
@@ -438,23 +446,46 @@ int Predict_Delete_Time(int obj_id) {
 	return predict_delete_time;
 }
 
+float Value_Function(int start_time, int finish_time, int obj_size) {
+	int x = finish_time - start_time;
+	float g = (obj_size + 1) * 0.5;
+	float f;
+	if (x <= 10) {
+		f = -0.005 * x + 1;
+	} else if (x <= 105) {
+		f = -0.01 * x + 1.05;
+	} else {
+		f = 0.;
+	}
+	float score = f * g;
+	return score;
+}
+
 float Get_Pos_Score(int disk_id, int pos, int time) {
 	int obj_id = disk[disk_id].d[pos].first;	
 	int obj_size = objects[obj_id].size;
 	float score = 0;
-	for (auto qry : query[obj_id]) {
-		int x = time - requests[qry].query_time;
-		float g = (obj_size + 1) * 0.5;
-		float f;
-		if (x <= 10) {
-			f = -0.005 * x + 1;
-		} else if (x <= 105) {
-			f = -0.01 * x + 1.05;
-		} else {
-			f = 0.;
-		}
-		score += f * g;
+
+	if (query[obj_id].empty()) {
+		return 0.;
 	}
+	
+	// 研究表明，任意取两个查询计算得分的平均值会使得结果变得更好。快14s，好0.3%
+	int qry_id = *(query[obj_id].begin());  
+	float a = Value_Function(requests[qry_id].query_time, timestamp, obj_size);
+	float b = 0;
+	if (query[obj_id].size() == 1) {
+		b = a;
+	} else {
+		qry_id = *(next(query[obj_id].begin()));
+		b = Value_Function(requests[qry_id].query_time, timestamp, obj_size);
+	}
+	
+	score = (a + b) / 2 * query[obj_id].size();
+	
+	// for (auto qry : query[obj_id]) {
+	// 	score += Value_Function(requests[qry].query_time, timestamp, obj_size);
+	// }
 	return score;
 }
 
