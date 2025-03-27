@@ -14,7 +14,7 @@ using namespace std;
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5792)
-#define BLOCK_NUM (32)
+#define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
 #define UPDATE_DISK_SCORE_FREQUENCY (2)
