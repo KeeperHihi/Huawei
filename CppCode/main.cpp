@@ -9,7 +9,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -52,7 +52,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 
 #define SEED (11111111)
 
-vector<int> query_times = {0, 2136, 1048, 2276, 1996, 1208, 799, 2048, 1695, 782, 1679, 923, 1876, 764, 1421, 824, 2349};
+vector<int> query_times = {0, 2181, 1071, 2242, 2047, 1125, 865, 1960, 1660, 731, 1711, 839, 1852, 696, 1505, 788, 2423};
 
 vector<vector<vector<pair<int, int>>>> priority_pos(MAX_TAG + 1, vector<vector<pair<int, int>>>(MAX_SIZE + 1));
 
