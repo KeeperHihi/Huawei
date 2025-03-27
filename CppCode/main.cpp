@@ -17,7 +17,7 @@ using namespace std;
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
-#define UPDATE_DISK_SCORE_FREQUENCY (2)
+#define UPDATE_DISK_SCORE_FREQUENCY (1)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
