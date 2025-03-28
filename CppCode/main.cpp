@@ -5,19 +5,22 @@
 // cur_score 必须每一轮都计算！不然这个分数就是扯淡
 // 上线段树维护 score 信息，每 UPDATE_DISK_SCORE_FREQUENCY 更新一次，直接 init
 
+// 跳跃的时候，不能只跳那 BLOCK_NUM 个点，这绝对是不行的
+// 锁机制，对于当前这个磁头即将读取的一部分 obj，我认为这就是它认定的东西，别人考虑分数的时候就不应该再计算这些 obj 的得分了！
+// 存放 obj 的时候，优先放到当前磁头的前方？便于快速读取到
 
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
-#define MAX_DISK_SIZE (5792)
+#define MAX_DISK_SIZE (5754)
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
-#define UPDATE_DISK_SCORE_FREQUENCY (1)
+#define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
@@ -36,6 +39,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
 #define JUMP_FREQUENCY (8)
+#define JUMP_BIAS (25)
 
 #define MAX_REQUEST_NUM (30000000)
 #define MAX_OBJECT_NUM (100000)
@@ -49,10 +53,14 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 
 #define DROP_SCORE (0)
 #define DECIDE_CONTINUE_READ (10)
+#define TRASH_PERPORTION (0)
+
+#define LOCK_UNITS (500)
+#define LOCK_TIMES (15)
 
 #define SEED (11111111)
 
-vector<int> query_times = {0, 2181, 1071, 2242, 2047, 1125, 865, 1960, 1660, 731, 1711, 839, 1852, 696, 1505, 788, 2423};
+vector<int> query_times = {0, 736, 1762, 2136, 1189, 1403, 1087, 1215, 2985, 1813, 1547, 1507, 3137, 793, 766, 2075, 1466};
 
 vector<vector<vector<pair<int, int>>>> priority_pos(MAX_TAG + 1, vector<vector<pair<int, int>>>(MAX_SIZE + 1));
 
@@ -65,6 +73,7 @@ vector<vector<tuple<int, int, int>>> disk_manage; // 前提是必须有 10 块�
 vector<vector<int>> disk_select;
 int pre_cost[MAX_DISK_NUM];
 char pre_move[MAX_DISK_NUM];
+vector<int> pre_jump(MAX_DISK_NUM, -JUMP_BIAS);
 
 int timestamp = 0; // 全局时间戳
 
@@ -97,6 +106,7 @@ struct Disk {
 	Disk() {
 		for (int i = 0; i < MAX_DISK_SIZE; i++) {
 			d[i] = {-1, -1};
+			color_tag[i] = -1;
 		}
 	}
 	int size() {
@@ -168,6 +178,9 @@ struct Disk {
 		}
 		assert(block != -1);
 		max_score_pos = block * BLOCK_SIZE;
+		while (d[max_score_pos].first == -1) {
+			max_score_pos = (max_score_pos + 1) % V;
+		}
 	}
 	
 	void Cal_Block_Score() {
@@ -207,7 +220,7 @@ struct Disk {
 		-2: 不限制颜色
 		0~V-1: 直接放到对应位置上去
 		*/
-		int write_idx;
+		int write_idx = -1;
 		siz += obj_size;
 
 		if (is_limit >= 0) {
@@ -235,6 +248,7 @@ struct Disk {
 		} else {
 			assert(is_limit == -2);
 			for (int i = 0; i < V; i++) {
+				if (color_tag[i] != -1) continue; 
 				if (d[i].first != -1) continue;
 				bool ok = 1;
 				for (int j = i + 1; j < i + obj_size; j++) {
@@ -243,6 +257,18 @@ struct Disk {
 				if (!ok) continue;
 				write_idx = i;
 				break;
+			}
+			if (write_idx == -1) {
+				for (int i = 0; i < V; i++) {
+					if (d[i].first != -1) continue;
+					bool ok = 1;
+					for (int j = i + 1; j < i + obj_size; j++) {
+						if (d[j].first != -1) ok = 0;
+					}	
+					if (!ok) continue;
+					write_idx = i;
+					break;
+				}
 			}
 		}
 		assert(write_idx != -1);
@@ -304,6 +330,8 @@ struct Object {
 	int size = 0;
 	int tag = -1;
 	bool is_delete = false;
+	int lock = -1;
+	int lock_time = 0;
 };
 Object objects[MAX_OBJECT_NUM + 1];
 unordered_set<int> query[MAX_OBJECT_NUM + 1]; // 每个对象的查询
@@ -376,7 +404,7 @@ void total_init() {
 		int idx = 0;
 		// cerr << "tot = " << tot << endl;
 		for (auto tag : disk[i].has_tag) {
-			int len = 1. * query_times[tag] / tot * V;
+			int len = 1. * query_times[tag] / tot * V * (1 - TRASH_PERPORTION);
 			// vector<int> cnt(MAX_SIZE);
 			// for (int j = 0; j < MAX_SIZE; j++) {
 			// 	cnt[j] = 1. * best_w[j] / divide * len;
@@ -414,7 +442,7 @@ void total_init() {
 			
 
 			idx = pre_idx;
-			for (int cnt = len; idx < V && cnt--; idx++) {
+			for (int cnt = len; idx < V * (1 - TRASH_PERPORTION) && cnt--; idx++) {
 				disk[i].color_tag[idx] = tag;
 			}
 		}
@@ -477,7 +505,7 @@ float Value_Function(int start_time, int finish_time, int obj_size) {
 	} else {
 		f = 0.;
 	}
-	float score = f * g;
+	float score = f;
 	return score;
 }
 
@@ -486,11 +514,15 @@ float Get_Pos_Score(int disk_id, int pos, int time) {
 	int obj_size = objects[obj_id].size;
 	float score = 0;
 
+	if (objects[obj_id].lock != -1 && objects[obj_id].lock != disk_id) {
+		return 0.;
+	}
+
 	if (query[obj_id].empty()) {
 		return 0.;
 	}
 	
-	// 研究表明，任意取两个查询计算得分的平均值会使得结果变得更好。快14s，好0.3%
+	// 研究表明，任意取两个查询计算得分的平均值会使得结果变得更好
 	int qry_id = *(query[obj_id].begin());  
 	float a = Value_Function(requests[qry_id].query_time, timestamp, obj_size);
 	float b = 0;
@@ -629,22 +661,22 @@ void hash_init() {
 	int idx = 0;
 	random_write_disk = {
 		{},
-		{0, 1, 5, },
-		{3, 8, 2, },
-		{7, 4, 9, },
-		{8, 7, 9, },
-		{5, 8, 2, },
-		{7, 9, 3, },
-		{2, 4, 6, },
-		{0, 1, 3, },
-		{3, 6, 5, },
-		{2, 6, 5, },
-		{4, 0, 1, },
-		{7, 4, 9, },
-		{6, 5, 8, },
 		{0, 1, 2, },
-		{6, 5, 8, },
-		{8, 3, 6, },
+		{3, 6, 5, },
+		{7, 4, 9, },
+		{8, 0, 2, },
+		{1, 8, 6, },
+		{3, 5, 2, },
+		{0, 4, 7, },
+		{9, 1, 8, },
+		{3, 5, 2, },
+		{0, 6, 4, },
+		{7, 3, 5, },
+		{0, 6, 2, },
+		{7, 4, 9, },
+		{1, 8, 7, },
+		{4, 1, 9, },
+		{3, 5, 8, },
 	};
 	// 每个 second_choice 有 3 个 盘块
 	second_choice.resize(MAX_TAG + 1);
@@ -802,6 +834,8 @@ void Write_Action() {
 			objects[obj_id].size = obj_size;
 			objects[obj_id].tag = obj_tag;
 			objects[obj_id].is_delete = false;
+			objects[obj_id].lock = -1;
+			objects[obj_id].lock_time = timestamp;
 			
 			for (int j = 0; j < REP_NUM; j++) {
 				auto [disk_idx, is_limit] = write_disk[j];
@@ -897,6 +931,15 @@ void Process(int i) {
 	disk[i].Cal_Score();
 }
 
+void Lock(int disk_id) {
+	for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
+		int obj_id = disk[disk_id].d[idx].first;
+		if (obj_id == -1) continue;
+		objects[obj_id].lock = disk_id; // here
+		objects[obj_id].lock_time = timestamp;
+	}
+}
+
 bool decide_continue_read(int disk_id) {
 	int idx = disk[disk_id].head;
 	int yes = 0;
@@ -936,10 +979,37 @@ bool decide_continue_read(int disk_id) {
 		p_cost = cost;
 		p_move = 'r';
 	}
-	return yes < no;	
+
+	if (Get_Pos_Score(disk_id, disk[disk_id].head, timestamp) > DROP_SCORE) {
+		return yes < no;
+	}
+	return yes < no;
+	
+	// idx = disk[disk_id].head;
+	// p_move = 'p';
+	// p_cost = 0;
+
+	// int oth = 0;
+	// int cnt = DECIDE_CONTINUE_READ;
+	// while (cnt-- && Get_Pos_Score(disk_id, idx, timestamp) <= DROP_SCORE) {
+	// 	idx = (idx + 1) % V;
+	// }
+	// for (; cnt > 0; cnt--, idx = (idx + 1) % V) {
+	// 	auto [obj_id, obj_part] = disk[disk_id].d[idx];
+	// 	int cost = INF;
+	// 	if (p_move == 'r') {
+	// 		cost = max(16, (int)ceil(p_cost * 0.8));
+	// 	} else {
+	// 		cost = 64;
+	// 	}
+	// 	oth += cost;
+	// 	p_cost = cost;
+	// 	p_move = 'r';
+	// }
+	// return yes <= no && yes <= oth;
 }
 
-int cnt = 0;
+int jump_cnt = 0;
 int drop = 0;
 int continue_cnt = 0;
 
@@ -951,7 +1021,7 @@ void show(string name, int &cnt) {
 }
 
 void Move() {
-	// show("continue_fre", continue_cnt);
+	// show("jump_fre", jump_cnt);
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
 		// for (int i = 0; i < N; i++) {
@@ -973,6 +1043,9 @@ void Move() {
 
 	auto read = [&](int disk_id) -> bool {
 		auto [obj_id, obj_part] = disk[disk_id].d[disk[disk_id].head];
+		if (objects[obj_id].lock != -1 && objects[obj_id].lock != disk_id) {
+			return false;
+		}
 		bool is_hit = false;
 		for (auto it = query[obj_id].begin(); it != query[obj_id].end(); ) {
 			int qry = *it;
@@ -989,6 +1062,8 @@ void Move() {
 				finish_qid.emplace_back(qry);
 			}
 		}
+		objects[obj_id].lock = -1;
+		objects[obj_id].lock_time = 0;
 		return is_hit;
 	};
 	
@@ -999,7 +1074,7 @@ void Move() {
 
 		// 方案零：每次更新完考虑跳跃
 		// if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0 && disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY)) {
-		// 	cnt++;
+		// 	jump_cnt++;
 		// 	int jump_to = disk[i].max_score_pos;
 		// 	disk[i].head = jump_to;
 		// 	cout << "j " << jump_to + 1 << "\n";
@@ -1009,18 +1084,25 @@ void Move() {
 		// }
 
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
-		if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY)) {
-			cnt++;
+		// if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY) && timestamp - pre_jump[i] > JUMP_BIAS) {
+		if (disk[i].cur_score < disk[i].max_score && timestamp - pre_jump[i] > JUMP_BIAS) {
+			jump_cnt++;
 			int jump_to = disk[i].max_score_pos;
 			disk[i].head = jump_to;
 			moves[i] = "j " + to_string(jump_to + 1);
 			pre_move[i] = 'j';
 			pre_cost[i] = 0;
+			Lock(i);
+			pre_jump[i] = timestamp;
 			continue;
 		}
 		
 		while (step) {
 			auto [obj_id, obj_part] = disk[i].d[disk[i].head];
+			if (timestamp - objects[obj_id].lock_time > LOCK_TIMES) {
+				objects[obj_id].lock = -1;
+				objects[obj_id].lock_time = 0;
+			}
 			int cost = INF;
 			if (pre_move[i] == 'r') {
 				cost = max(16, (int)ceil(pre_cost[i] * 0.8));
@@ -1031,8 +1113,11 @@ void Move() {
 				break;
 			}
 
-			if (decide_continue_read(i)) {
-				continue_cnt++;
+			float score = Get_Pos_Score(i, disk[i].head, timestamp);
+			
+			// 必须把 read 和 write 割裂开，不然的话 hit 了就得 r
+			
+			if (score > DROP_SCORE) {
 				read(i);
 				move += 'r';
 				step -= cost;
@@ -1042,29 +1127,40 @@ void Move() {
 				continue;
 			}
 
-			float score = Get_Pos_Score(i, disk[i].head, timestamp);
-			if (score <= DROP_SCORE) {
-				move += 'p';
-				pre_move[i] = 'p';
-				pre_cost[i] = 0;
-				step--;
-				disk[i].head = (disk[i].head + 1) % V;
-				
-				if (query[obj_id].size()) {
-					drop_num[i]++;
-					drop++;
-				}
-				continue;
-			}
-			
-			bool is_hit = read(i);
-			if (is_hit) {
+			if (decide_continue_read(i)) {
+				continue_cnt++;
+				read(i);
+				// Lock(i); // 相当于是决定跳转到原地了，不能继续跳跃，但事实证明效果不好
+				// pre_jump[i] = timestamp;
 				move += 'r';
 				step -= cost;
-			} else {
-				move += 'p';
-				step--;
+				pre_cost[i] = cost;
+				pre_move[i] = move.back();
+				disk[i].head = (disk[i].head + 1) % V;
+				continue;
 			}
+
+			// if (score <= DROP_SCORE) {
+			// 	move += 'p';
+			// 	pre_move[i] = 'p';
+			// 	pre_cost[i] = 0;
+			// 	step--;
+			// 	disk[i].head = (disk[i].head + 1) % V;
+				
+			// 	if (query[obj_id].size()) {
+			// 		drop_num[i]++;
+			// 		drop++;
+			// 	}
+			// 	continue;
+			// }
+
+			if (objects[obj_id].lock == i) {
+				objects[obj_id].lock = -1;
+				objects[obj_id].lock_time = 0;
+			}
+			
+			move += 'p';
+			step--;
 			pre_cost[i] = cost;
 			pre_move[i] = move.back();
 			disk[i].head = (disk[i].head + 1) % V;
@@ -1083,7 +1179,7 @@ void Move() {
 }
 
 
-void Solve() {
+void Solve() {	
 	Delete_Action();
 	Write_Action();
 	Read_Action();
