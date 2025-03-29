@@ -9,21 +9,30 @@
 // 锁机制，对于当前这个磁头即将读取的一部分 obj，我认为这就是它认定的东西，别人考虑分数的时候就不应该再计算这些 obj 的得分了！
 // 存放 obj 的时候，优先放到当前磁头的前方？便于快速读取到
 
+// 跳转到那之后第一个有东西的地方？
+
+// 现在这一发是调了一些参数的，即将交一发把 LOCK_UNITS 按比例调成 1600 的
+
+
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5754)
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
+#define LOCK_UNITS (500)
+#define LOCK_TIMES (LOCK_UNITS / (350 / 16))
 #else
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
 #define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
+#define LOCK_UNITS (1600)
+#define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
 #endif
 
 #define MAX_TAG (16)
@@ -38,8 +47,8 @@ const int DISK_SPLIT_4 = DISK_SPLIT_BLOCK * 31.7;
 const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
-#define JUMP_FREQUENCY (8)
-#define JUMP_BIAS (25)
+// #define JUMP_FREQUENCY (8)
+#define JUMP_BIAS (LOCK_TIMES)
 
 #define MAX_REQUEST_NUM (30000000)
 #define MAX_OBJECT_NUM (100000)
@@ -52,12 +61,10 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define EPS (1e-6)
 #define PREDICT (2) // 没道理，因为一轮扫不到一块
 
-#define DROP_SCORE (0.05)
+#define DROP_SCORE (0)
 #define DECIDE_CONTINUE_READ (10)
 #define TRASH_PERPORTION (0.05)
 
-#define LOCK_UNITS (500)
-#define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
 
 #define BLOCK_BIAS (5)
 
@@ -78,6 +85,7 @@ vector<vector<int>> disk_select;
 int pre_cost[MAX_DISK_NUM];
 char pre_move[MAX_DISK_NUM];
 vector<int> pre_jump(MAX_DISK_NUM, -JUMP_BIAS);
+vector<bool> pre_decide(MAX_DISK_NUM, false);
 
 int timestamp = 0; // 全局时间戳
 
@@ -493,6 +501,7 @@ struct Object {
 	bool is_delete = false;
 	int lock = -1;
 	int lock_time = 0;
+	int lock_last = 0;
 };
 Object objects[MAX_OBJECT_NUM + 1];
 unordered_set<int> query[MAX_OBJECT_NUM + 1]; // 每个对象的查询
@@ -687,7 +696,7 @@ float Get_Pos_Score(int disk_id, int pos, int time) {
 	// 研究表明，任意取两个查询计算得分的平均值会使得结果变得更好
 	int qry_id = *(query[obj_id].begin());  
 	float a = Value_Function(requests[qry_id].query_time, timestamp, obj_size, obj_tag);
-	float b = 0;
+	float b = a;
 	if (query[obj_id].size() == 1) {
 		b = a;
 	} else {
@@ -698,7 +707,7 @@ float Get_Pos_Score(int disk_id, int pos, int time) {
 	score = (a + b) / 2 * query[obj_id].size();
 	
 	// for (auto qry : query[obj_id]) {
-	// 	score += Value_Function(requests[qry].query_time, timestamp, obj_size);
+	// 	score += Value_Function(requests[qry].query_time, timestamp, obj_size, obj_tag);
 	// }
 	return score;
 }
@@ -1093,9 +1102,9 @@ void Process(int i) {
 	disk[i].Cal_Score();
 }
 
-void Lock(int disk_id, bool all_color) {
+void Lock(int disk_id, bool all_color, int lock_num, int lock_last) {
 	if (all_color) {
-		for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
+		for (int cnt = lock_num, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
 			int obj_id = disk[disk_id].d[idx].first;
 			if (obj_id == -1) continue;
 			objects[obj_id].lock = disk_id; // here
@@ -1103,11 +1112,12 @@ void Lock(int disk_id, bool all_color) {
 		}
 		return;
 	}
-	for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
+	for (int cnt = lock_num, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
 		int obj_id = disk[disk_id].d[idx].first;
 		if (obj_id == -1) continue;
 		objects[obj_id].lock = disk_id; // here
 		objects[obj_id].lock_time = timestamp;
+		objects[obj_id].lock_last = lock_last;
 	}
 }
 
@@ -1132,13 +1142,16 @@ bool decide_continue_read(int disk_id) {
 	}
 
 	// int score_cnt = 0;
+	// assert(Get_Pos_Score(disk_id, (idx + continue_white) % V, timestamp) > DROP_SCORE);
 	// for (int i = (idx + continue_white) % V, cnt = 7; cnt--; i = (i + 1) % V) {
 	// 	if (Get_Pos_Score(disk_id, i, timestamp) > DROP_SCORE) {
 	// 		score_cnt++;
 	// 	}
 	// }
-
-	// 后面怎么判断连续 7 个是否值得连读
+	// if (score_cnt < 2) {
+	// 	return false;
+	// }
+	// 后面怎么判断连续 7 个是否值得连读，判断只要后面不是只有一个就连读
 
 	int base = continue_white + 262;
 	int X = 0;
@@ -1154,6 +1167,9 @@ bool decide_continue_read(int disk_id) {
 		X += cost;
 		p_cost = cost;
 		p_move = 'r';
+	}
+	if (X < base) {
+		Lock(disk_id, false, continue_white + 7, 2);
 	}
 	// cerr << X << ' ' << base << endl;
 	return X < base;
@@ -1236,13 +1252,13 @@ int continue_cnt = 0;
 
 void show(string name, int &cnt) {
 	if (timestamp % 1800 == 1) {
-		cerr << name << " = " << 1. * cnt / N / 1800 << endl;
+		cerr << name << " = " << 1. * cnt / N / 1800 / 350 * 100 << endl;
 		cnt = 0;
 	}
 }
 
 void Move() {
-	// show("jump_fre", jump_cnt);
+	// show("continue_fre", continue_cnt);
 	vector<int> finish_qid;
 	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0 && timestamp >= 10) {
 		// for (int i = 0; i < N; i++) {
@@ -1322,7 +1338,7 @@ void Move() {
 				moves[i] = "j " + to_string(jump_to + 1);
 				pre_move[i] = 'j';
 				pre_cost[i] = 0;
-				Lock(i, true);
+				Lock(i, true, LOCK_UNITS, LOCK_TIMES);
 				pre_jump[i] = timestamp;
 			} else {
 				while (step) {
@@ -1347,7 +1363,7 @@ void Move() {
 						objects[obj_id].lock_time = 0;
 					}
 				}
-				Lock(i, true);
+				Lock(i, true, LOCK_UNITS, LOCK_TIMES);
 				move += '#';
 				moves[i] = move;
 			}
@@ -1357,20 +1373,31 @@ void Move() {
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
 		// if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY) && timestamp - pre_jump[i] > JUMP_BIAS) {
 		if (disk[i].cur_score < disk[i].max_score && timestamp - pre_jump[i] > JUMP_BIAS) {
-			jump_cnt++;
 			int jump_to = disk[i].max_score_pos;
+			int help = BLOCK_SIZE;
+			while (help-- && Get_Pos_Score(i, jump_to, timestamp + 1) <= DROP_SCORE) {
+				// cerr << i << ' ' << jump_to << endl;
+				jump_to = (jump_to + 1) % V;
+			}
+			if (help == 0) {
+				goto not_jump;
+			}
+			jump_cnt++;
 			disk[i].head = jump_to;
 			moves[i] = "j " + to_string(jump_to + 1);
 			pre_move[i] = 'j';
 			pre_cost[i] = 0;
-			Lock(i, false);
+			Lock(i, false, LOCK_UNITS, LOCK_TIMES);
 			pre_jump[i] = timestamp;
+			pre_decide[i] = false;
 			continue;
 		}
 		
+		not_jump:
+
 		while (step) {
 			auto [obj_id, obj_part] = disk[i].d[disk[i].head];
-			if (timestamp - objects[obj_id].lock_time > LOCK_TIMES) {
+			if (timestamp - objects[obj_id].lock_time > objects[obj_id].lock_last) {
 				objects[obj_id].lock = -1;
 				objects[obj_id].lock_time = 0;
 			}
@@ -1382,6 +1409,10 @@ void Move() {
 			}
 			if (step < cost) {
 				break;
+			}
+			if (objects[obj_id].lock == i) {
+				objects[obj_id].lock = -1;
+				objects[obj_id].lock_time = 0;
 			}
 
 			float score = Get_Pos_Score(i, disk[i].head, timestamp);
@@ -1395,11 +1426,24 @@ void Move() {
 				pre_cost[i] = cost;
 				pre_move[i] = move.back();
 				disk[i].head = (disk[i].head + 1) % V;
+				pre_decide[i] = false;
 				continue;
 			}
 
+			// if (pre_decide[i]) {
+			// 	continue_cnt++;
+			// 	read(i);
+			// 	move += 'r';
+			// 	step -= cost;
+			// 	pre_cost[i] = cost;
+			// 	pre_move[i] = move.back();
+			// 	disk[i].head = (disk[i].head + 1) % V;
+			// 	continue;
+			// }
+
 			if (decide_continue_read(i)) {
-				continue_cnt++;
+				pre_decide[i] = true;
+				continue_cnt += cost;
 				read(i);
 				// if (Get_Pos_Score(i, disk[i].head, timestamp) <= DROP_SCORE) {
 				// 	Lock(i, false); // 相当于是决定跳转到原地了，不能继续跳跃，但事实证明效果不好
@@ -1412,6 +1456,7 @@ void Move() {
 				disk[i].head = (disk[i].head + 1) % V;
 				continue;
 			}
+			pre_decide[i] = false;
 
 			// if (score <= DROP_SCORE) {
 			// 	move += 'p';
@@ -1426,11 +1471,6 @@ void Move() {
 			// 	}
 			// 	continue;
 			// }
-
-			if (objects[obj_id].lock == i) {
-				objects[obj_id].lock = -1;
-				objects[obj_id].lock_time = 0;
-			}
 			
 			move += 'p';
 			step--;
@@ -1438,6 +1478,12 @@ void Move() {
 			pre_move[i] = move.back();
 			disk[i].head = (disk[i].head + 1) % V;
 		}
+		// while (move.back() != 'r' && step && Get_Pos_Score(i, disk[i].head, timestamp) <= DROP_SCORE) {
+		// 	move += 'p';
+		// 	step--;
+		// 	pre_move[i] = 'p';
+		// 	disk[i].head = (disk[i].head + 1) % V;
+		// }
 		move += '#';
 		moves[i] = move;
 	}
@@ -1471,7 +1517,7 @@ void Solve() {
 		// 	tot += fre_read[i][timestamp / FRE_PER_SLICING + 1];
 		// }
 		// for (int i = 1; i <= MAX_TAG; i++) {
-		// 	weight[i] = 1 + fre_read[i][timestamp / FRE_PER_SLICING + 1] / tot * 10;
+		// 	weight[i] = 1 + fre_read[i][timestamp / FRE_PER_SLICING + 1] / tot;
 		// }
 		// auto pre_fre = query_times;
 		// for (int i = 1; i <= MAX_TAG; i++) {
