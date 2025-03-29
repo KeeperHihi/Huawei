@@ -12,7 +12,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -314,79 +314,79 @@ struct Disk {
 			return write_idx;
 		}
 
-		if (is_limit == -1) {
-			for (int i = 0; i < V - obj_size; i++) {
-				if (color_tag[i] != obj_tag || d[i].first != -1) continue;
-				bool ok = 1;
-				for (int j = i + 1; j < i + obj_size; j++) {
-					if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
-				}	
-				if (!ok) continue;
-				int continue_white = 1;
-				int j = i + 1;
-				while (j < V && continue_white < BLOCK_BIAS) {
-					continue_white++;
-					j++;
-				}
-				j = i - 1;
-				while (j >= 0 && continue_white < BLOCK_BIAS) {
-					continue_white++;
-					j--;
-				}
-				if (continue_white == BLOCK_BIAS) continue;
-				write_idx = i;
-				break;
-			}
-		} else {
-			assert(is_limit == -2);
-			for (int i = 0; i < V - obj_size; i++) {
-				if (color_tag[i] != -1) continue; 
-				if (d[i].first != -1) continue;
-				bool ok = 1;
-				for (int j = i + 1; j < i + obj_size; j++) {
-					if (d[j].first != -1) ok = 0;
-				}	
-				if (!ok) continue;
-				int continue_white = 1;
-				int j = i + 1;
-				while (j < V && continue_white < BLOCK_BIAS) {
-					continue_white++;
-					j++;
-				}
-				j = i - 1;
-				while (j >= 0 && continue_white < BLOCK_BIAS) {
-					continue_white++;
-					j--;
-				}
-				if (continue_white == BLOCK_BIAS) continue;
-				write_idx = i;
-				break;
-			}
-			if (write_idx == -1) {
-				for (int i = 0; i < V - obj_size; i++) {
-					if (d[i].first != -1) continue;
-					bool ok = 1;
-					for (int j = i + 1; j < i + obj_size; j++) {
-						if (d[j].first != -1) ok = 0;
-					}	
-					if (!ok) continue;
-					int continue_white = 1;
-					int j = i + 1;
-					while (j < V && continue_white < BLOCK_BIAS) {
-						continue_white++;
-						j++;
-					}
-					j = i - 1;
-					while (j >= 0 && continue_white < BLOCK_BIAS) {
-						continue_white++;
-						j--;
-					}
-					if (continue_white == BLOCK_BIAS) continue;
-					write_idx = i;
-					break;
-				}
-			}
-		}
+		// if (is_limit == -1) {
+		// 	for (int i = 0; i < V - obj_size; i++) {
+		// 		if (color_tag[i] != obj_tag || d[i].first != -1) continue;
+		// 		bool ok = 1;
+		// 		for (int j = i + 1; j < i + obj_size; j++) {
+		// 			if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
+		// 		}	
+		// 		if (!ok) continue;
+		// 		int continue_white = 1;
+		// 		int j = i + 1;
+		// 		while (j < V && continue_white < BLOCK_BIAS) {
+		// 			continue_white++;
+		// 			j++;
+		// 		}
+		// 		j = i - 1;
+		// 		while (j >= 0 && continue_white < BLOCK_BIAS) {
+		// 			continue_white++;
+		// 			j--;
+		// 		}
+		// 		if (continue_white == BLOCK_BIAS) continue;
+		// 		write_idx = i;
+		// 		break;
+		// 	}
+		// } else {
+		// 	assert(is_limit == -2);
+		// 	for (int i = 0; i < V - obj_size; i++) {
+		// 		if (color_tag[i] != -1) continue; 
+		// 		if (d[i].first != -1) continue;
+		// 		bool ok = 1;
+		// 		for (int j = i + 1; j < i + obj_size; j++) {
+		// 			if (d[j].first != -1) ok = 0;
+		// 		}	
+		// 		if (!ok) continue;
+		// 		int continue_white = 1;
+		// 		int j = i + 1;
+		// 		while (j < V && continue_white < BLOCK_BIAS) {
+		// 			continue_white++;
+		// 			j++;
+		// 		}
+		// 		j = i - 1;
+		// 		while (j >= 0 && continue_white < BLOCK_BIAS) {
+		// 			continue_white++;
+		// 			j--;
+		// 		}
+		// 		if (continue_white == BLOCK_BIAS) continue;
+		// 		write_idx = i;
+		// 		break;
+		// 	}
+		// 	if (write_idx == -1) {
+		// 		for (int i = 0; i < V - obj_size; i++) {
+		// 			if (d[i].first != -1) continue;
+		// 			bool ok = 1;
+		// 			for (int j = i + 1; j < i + obj_size; j++) {
+		// 				if (d[j].first != -1) ok = 0;
+		// 			}	
+		// 			if (!ok) continue;
+		// 			int continue_white = 1;
+		// 			int j = i + 1;
+		// 			while (j < V && continue_white < BLOCK_BIAS) {
+		// 				continue_white++;
+		// 				j++;
+		// 			}
+		// 			j = i - 1;
+		// 			while (j >= 0 && continue_white < BLOCK_BIAS) {
+		// 				continue_white++;
+		// 				j--;
+		// 			}
+		// 			if (continue_white == BLOCK_BIAS) continue;
+		// 			write_idx = i;
+		// 			break;
+		// 		}
+		// 	}
+		// }
 
 		if (write_idx == -1) {
 			if (is_limit == -1) {
@@ -1112,11 +1112,61 @@ void Lock(int disk_id, bool all_color) {
 }
 
 bool decide_continue_read(int disk_id) {
+
 	int idx = disk[disk_id].head;
-	int yes = 0;
-	int no = 0;
 	char p_move = pre_move[disk_id];
 	int p_cost = pre_cost[disk_id];
+	
+	int continue_white = 0;
+	assert(Get_Pos_Score(disk_id, idx, timestamp) <= DROP_SCORE);
+
+	for (int i = idx, cnt = 15; cnt--; i = (i + 1) % V) {
+		if (Get_Pos_Score(disk_id, i, timestamp) <= DROP_SCORE) {
+			continue_white++;
+		} else {
+			break;
+		}
+	}
+	if (continue_white > 11) {
+		return false;
+	}
+
+	// int score_cnt = 0;
+	// for (int i = (idx + continue_white) % V, cnt = 7; cnt--; i = (i + 1) % V) {
+	// 	if (Get_Pos_Score(disk_id, i, timestamp) > DROP_SCORE) {
+	// 		score_cnt++;
+	// 	}
+	// }
+
+	// 后面怎么判断连续 7 个是否值得连读
+
+	int base = continue_white + 262;
+	int X = 0;
+
+	for (int cnt = continue_white + 7; cnt--; idx = (idx + 1) % V) {
+		auto [obj_id, obj_part] = disk[disk_id].d[idx];
+		int cost = INF;
+		if (p_move == 'r') {
+			cost = max(16, (int)ceil(p_cost * 0.8));
+		} else {
+			cost = 64;
+		}
+		X += cost;
+		p_cost = cost;
+		p_move = 'r';
+	}
+	// cerr << X << ' ' << base << endl;
+	return X < base;
+	
+	
+	
+	
+
+	
+	int yes = 0;
+	int no = 0;
+	p_move = pre_move[disk_id];
+	p_cost = pre_cost[disk_id];
 	for (int cnt = DECIDE_CONTINUE_READ; cnt--; idx = (idx + 1) % V) {
 		auto [obj_id, obj_part] = disk[disk_id].d[idx];
 		int cost = INF;
