@@ -50,14 +50,16 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
 #define EPS (1e-6)
-#define PREDICT (2)
+#define PREDICT (2) // 没道理，因为一轮扫不到一块
 
 #define DROP_SCORE (0.05)
 #define DECIDE_CONTINUE_READ (10)
 #define TRASH_PERPORTION (0.05)
 
 #define LOCK_UNITS (500)
-#define LOCK_TIMES (15)
+#define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
+
+#define BLOCK_BIAS (5)
 
 #define SEED (11111111)
 
@@ -173,7 +175,7 @@ struct Disk {
 	bool capacity(int obj_tag, int obj_size, int is_limit) {
 		bool cap = 0;
 		if (is_limit == -1) {
-			for (int i = 0; i < V; i++) {
+			for (int i = 0; i < V - obj_size; i++) {
 				if (color_tag[i] != obj_tag || d[i].first != -1) continue;
 				bool ok = 1;
 				for (int j = i + 1; j < i + obj_size; j++) {
@@ -185,7 +187,7 @@ struct Disk {
 			}
 		} else {
 			assert(is_limit == -2);
-			for (int i = 0; i < V; i++) {
+			for (int i = 0; i < V - obj_size; i++) {
 				if (d[i].first != -1) continue;
 				bool ok = 1;
 				for (int j = i + 1; j < i + obj_size; j++) {
@@ -313,19 +315,31 @@ struct Disk {
 		}
 
 		if (is_limit == -1) {
-			for (int i = 0; i < V; i++) {
+			for (int i = 0; i < V - obj_size; i++) {
 				if (color_tag[i] != obj_tag || d[i].first != -1) continue;
 				bool ok = 1;
 				for (int j = i + 1; j < i + obj_size; j++) {
 					if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
 				}	
 				if (!ok) continue;
+				int continue_white = 1;
+				int j = i + 1;
+				while (j < V && continue_white < BLOCK_BIAS) {
+					continue_white++;
+					j++;
+				}
+				j = i - 1;
+				while (j >= 0 && continue_white < BLOCK_BIAS) {
+					continue_white++;
+					j--;
+				}
+				if (continue_white == BLOCK_BIAS) continue;
 				write_idx = i;
 				break;
 			}
 		} else {
 			assert(is_limit == -2);
-			for (int i = 0; i < V; i++) {
+			for (int i = 0; i < V - obj_size; i++) {
 				if (color_tag[i] != -1) continue; 
 				if (d[i].first != -1) continue;
 				bool ok = 1;
@@ -333,11 +347,63 @@ struct Disk {
 					if (d[j].first != -1) ok = 0;
 				}	
 				if (!ok) continue;
+				int continue_white = 1;
+				int j = i + 1;
+				while (j < V && continue_white < BLOCK_BIAS) {
+					continue_white++;
+					j++;
+				}
+				j = i - 1;
+				while (j >= 0 && continue_white < BLOCK_BIAS) {
+					continue_white++;
+					j--;
+				}
+				if (continue_white == BLOCK_BIAS) continue;
 				write_idx = i;
 				break;
 			}
 			if (write_idx == -1) {
-				for (int i = 0; i < V; i++) {
+				for (int i = 0; i < V - obj_size; i++) {
+					if (d[i].first != -1) continue;
+					bool ok = 1;
+					for (int j = i + 1; j < i + obj_size; j++) {
+						if (d[j].first != -1) ok = 0;
+					}	
+					if (!ok) continue;
+					int continue_white = 1;
+					int j = i + 1;
+					while (j < V && continue_white < BLOCK_BIAS) {
+						continue_white++;
+						j++;
+					}
+					j = i - 1;
+					while (j >= 0 && continue_white < BLOCK_BIAS) {
+						continue_white++;
+						j--;
+					}
+					if (continue_white == BLOCK_BIAS) continue;
+					write_idx = i;
+					break;
+				}
+			}
+		}
+
+		if (write_idx == -1) {
+			if (is_limit == -1) {
+				for (int i = 0; i < V - obj_size; i++) {
+					if (color_tag[i] != obj_tag || d[i].first != -1) continue;
+					bool ok = 1;
+					for (int j = i + 1; j < i + obj_size; j++) {
+						if (color_tag[j] != obj_tag || d[j].first != -1) ok = 0;
+					}	
+					if (!ok) continue;
+					write_idx = i;
+					break;
+				}
+			} else {
+				assert(is_limit == -2);
+				for (int i = 0; i < V - obj_size; i++) {
+					if (color_tag[i] != -1) continue; 
 					if (d[i].first != -1) continue;
 					bool ok = 1;
 					for (int j = i + 1; j < i + obj_size; j++) {
@@ -347,8 +413,25 @@ struct Disk {
 					write_idx = i;
 					break;
 				}
+				if (write_idx == -1) {
+					for (int i = 0; i < V - obj_size; i++) {
+						if (d[i].first != -1) continue;
+						bool ok = 1;
+						for (int j = i + 1; j < i + obj_size; j++) {
+							if (d[j].first != -1) ok = 0;
+						}	
+						if (!ok) continue;
+						write_idx = i;
+						break;
+					}
+				}
 			}
 		}
+
+
+
+		
+		
 		assert(write_idx != -1);
 
 		for (int i = write_idx, size = 0; size < obj_size; i++, size++) {
@@ -1011,16 +1094,15 @@ void Process(int i) {
 }
 
 void Lock(int disk_id, bool all_color) {
-	// if (all_color) {
-	// 	// cerr << disk[disk_id].color_tag[disk[disk_id].head] << " is locked by " << disk_id << endl;
-	// 	for (int idx = disk[disk_id].head; disk[disk_id].color_tag[idx] == disk[disk_id].color_tag[disk[disk_id].head]; idx = (idx + 1) % V) {
-	// 		int obj_id = disk[disk_id].d[idx].first;
-	// 		if (obj_id == -1) continue;
-	// 		objects[obj_id].lock = disk_id; // here
-	// 		objects[obj_id].lock_time = timestamp;
-	// 	}
-	// 	return;
-	// }
+	if (all_color) {
+		for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
+			int obj_id = disk[disk_id].d[idx].first;
+			if (obj_id == -1) continue;
+			objects[obj_id].lock = disk_id; // here
+			objects[obj_id].lock_time = timestamp;
+		}
+		return;
+	}
 	for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
 		int obj_id = disk[disk_id].d[idx].first;
 		if (obj_id == -1) continue;
@@ -1116,13 +1198,13 @@ void Move() {
 		// for (int i = 0; i < N; i++) {
 		// 	Process(i);
 		// }
-		vector<thread> threads;
-		for (int i = 0; i < N; i++) {
-			threads.emplace_back(Process, i);
-		}
-		for (auto &thread : threads) {
-			thread.join();
-		}
+		// vector<thread> threads;
+		// for (int i = 0; i < N; i++) {
+		// 	threads.emplace_back(Process, i);
+		// }
+		// for (auto &thread : threads) {
+		// 	thread.join();
+		// }
 	}
 	vector<int> drop_num(N);
 	vector<int> pos(N);
@@ -1158,6 +1240,9 @@ void Move() {
 	
 	// for (int i = 0; i < N; i++) {
 	for (auto i : pos) {
+		if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0 && timestamp >= 10) {
+			Process(i);
+		}
 		string move;
 		int step = G;
 
@@ -1212,6 +1297,7 @@ void Move() {
 						objects[obj_id].lock_time = 0;
 					}
 				}
+				Lock(i, true);
 				move += '#';
 				moves[i] = move;
 			}
@@ -1265,8 +1351,10 @@ void Move() {
 			if (decide_continue_read(i)) {
 				continue_cnt++;
 				read(i);
-				// Lock(i); // 相当于是决定跳转到原地了，不能继续跳跃，但事实证明效果不好
-				// pre_jump[i] = timestamp;
+				// if (Get_Pos_Score(i, disk[i].head, timestamp) <= DROP_SCORE) {
+				// 	Lock(i, false); // 相当于是决定跳转到原地了，不能继续跳跃，但事实证明效果不好
+				// 	pre_jump[i] = timestamp;
+				// }
 				move += 'r';
 				step -= cost;
 				pre_cost[i] = cost;
