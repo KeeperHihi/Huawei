@@ -12,7 +12,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -49,18 +49,20 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define MAX_EPOCH (50)
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
+#define EPS (1e-6)
 #define PREDICT (2)
 
-#define DROP_SCORE (0)
+#define DROP_SCORE (0.05)
 #define DECIDE_CONTINUE_READ (10)
-#define TRASH_PERPORTION (0)
+#define TRASH_PERPORTION (0.05)
 
 #define LOCK_UNITS (500)
 #define LOCK_TIMES (15)
 
 #define SEED (11111111)
 
-vector<int> query_times = {0, 736, 1762, 2136, 1189, 1403, 1087, 1215, 2985, 1813, 1547, 1507, 3137, 793, 766, 2075, 1466};
+vector<float> query_times = {0, 736, 1762, 2136, 1189, 1403, 1087, 1215, 2985, 1813, 1547, 1507, 3137, 793, 766, 2075, 1466};
+vector<float> weight(MAX_TAG + 1, 1);
 
 vector<vector<vector<pair<int, int>>>> priority_pos(MAX_TAG + 1, vector<vector<pair<int, int>>>(MAX_SIZE + 1));
 
@@ -77,6 +79,60 @@ vector<int> pre_jump(MAX_DISK_NUM, -JUMP_BIAS);
 
 int timestamp = 0; // 全局时间戳
 
+// mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
+mt19937_64 rng(SEED);
+
+vector<vector<int>> hot_tags = {
+	{},
+	{7, 1, 3, },
+	{1, 2, 7, },
+	{1, },
+	{1, },
+	{1, },
+	{1, 4, 6, },
+	{6, 4, 11, },
+	{6, 11, 2, },
+	{6, 11, 5, },
+	{6, 5, 11, },
+	{6, 15, 2, },
+	{15, 6, 1, },
+	{1, 15, 14, },
+	{1, 15, 14, },
+	{15, 1, 14, },
+	{15, 14, 1, },
+	{12, 15, 14, },
+	{12, },
+	{12, },
+	{12, 16, 8, },
+	{16, 3, 10, },
+	{3, 16, 10, },
+	{11, 10, 3, },
+	{11, 1, 10, },
+	{1, 5, 11, },
+	{1, 5, 9, },
+	{1, 5, 9, },
+	{9, 1, 5, },
+	{9, },
+	{9, 10, 14, },
+	{9, 10, 15, },
+	{15, 10, 9, },
+	{15, 4, 9, },
+	{15, 4, 8, },
+	{8, 16, 4, },
+	{8, 16, 2, },
+	{16, 8, 12, },
+	{16, 12, 2, },
+	{16, 13, 12, },
+	{16, 13, 4, },
+	{16, 3, 4, },
+	{3, 16, 4, },
+	{2, 16, 3, },
+	{16, 2, 3, },
+	{16, 2, 3, },
+	{16, 3, 4, },
+	{8, 12, 15, },
+	{9, 8, 12, },	
+};
 
 
 // ------------------------------------ 全局函数声明 ----------------------------------------
@@ -103,6 +159,8 @@ struct Disk {
 	int max_score_pos = 0;  // 价值最大块位置
 	double max_score = -1;  // 价值最大块价值
 	double cur_score = 0;   // 当前位置向前走 PREDICT 个块的价值
+	int working = -1;
+	vector<int> color_start;
 	Disk() {
 		for (int i = 0; i < MAX_DISK_SIZE; i++) {
 			d[i] = {-1, -1};
@@ -150,6 +208,26 @@ struct Disk {
 		// 	}
 		// }
 		return cap;
+	}
+
+	void Color() {
+		int tot = 0;
+		for (auto tag : has_tag) {
+			tot += query_times[tag];
+		}
+		int idx = 0;
+		for (auto tag : has_tag) {
+			color_start.push_back(idx);
+			int len = 1. * query_times[tag] / tot * V * (1 - TRASH_PERPORTION);
+			for (int cnt = len; idx < V * (1 - TRASH_PERPORTION) && cnt--; idx++) {
+				color_tag[idx] = tag;
+			}
+		}
+		// int shift = rng() % V;
+		// auto y = color_tag;
+		// for (int i = 0; i < V; i++) {
+		// 	color_tag[i] = y[(i + shift) % V];
+		// }
 	}
 
 	void Cal_Current_Score() {
@@ -349,7 +427,7 @@ void Pre_Process() {
 	// for (int i = 1; i <= MAX_TAG; i++) {
 	// 	for (int j = 1; j <= batch_num; j++) {
 	// 		cerr << fre_write[i][j] << ' ';
-	// 		tag[i] += fre_write[i][j];
+	// 		tag[i] += fre_read[i][j];
 	// 	}
 	// 	cerr << endl;
 	// }
@@ -397,19 +475,21 @@ void total_init() {
 		}
 
 		// 染色，对应位置只能存储对应 tag
-		int tot = 0;
-		for (auto tag : disk[i].has_tag) {
-			tot += query_times[tag];
-		}
-		int idx = 0;
+		disk[i].Color();
+		
+		// int tot = 0;
+		// for (auto tag : disk[i].has_tag) {
+		// 	tot += query_times[tag];
+		// }
+		// int idx = 0;
 		// cerr << "tot = " << tot << endl;
-		for (auto tag : disk[i].has_tag) {
-			int len = 1. * query_times[tag] / tot * V * (1 - TRASH_PERPORTION);
+		// for (auto tag : disk[i].has_tag) {
+		// 	int len = 1. * query_times[tag] / tot * V * (1 - TRASH_PERPORTION);
 			// vector<int> cnt(MAX_SIZE);
 			// for (int j = 0; j < MAX_SIZE; j++) {
 			// 	cnt[j] = 1. * best_w[j] / divide * len;
 			// }
-			int pre_idx = idx; 
+			// int pre_idx = idx; 
 			// if (i == 0) {
 			// 	cerr << "i = 0, " << best_w[0] << ' ' << divide << ' ' << len << endl;
 			// 	for (int j = 0; j < MAX_SIZE; j++) {
@@ -441,11 +521,11 @@ void total_init() {
 			// }
 			
 
-			idx = pre_idx;
-			for (int cnt = len; idx < V * (1 - TRASH_PERPORTION) && cnt--; idx++) {
-				disk[i].color_tag[idx] = tag;
-			}
-		}
+		// 	idx = pre_idx;
+		// 	for (int cnt = len; idx < V * (1 - TRASH_PERPORTION) && cnt--; idx++) {
+		// 		disk[i].color_tag[idx] = tag;
+		// 	}
+		// }
 		
 		// 理论比例：972 648 567 291 129
 		// for (int j = 0; j < DISK_SPLIT_1; j++) {
@@ -475,8 +555,6 @@ void total_init() {
 }
 
 
-// mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
-mt19937_64 rng(SEED);
 bool Random_Appear(int p) {
 	return rng() % 100 + 1 <= p;
 }
@@ -494,7 +572,7 @@ int Predict_Delete_Time(int obj_id) {
 	return predict_delete_time;
 }
 
-float Value_Function(int start_time, int finish_time, int obj_size) {
+float Value_Function(int start_time, int finish_time, int obj_size, int obj_tag) {
 	int x = finish_time - start_time;
 	float g = (obj_size + 1) * 0.5;
 	float f;
@@ -505,13 +583,14 @@ float Value_Function(int start_time, int finish_time, int obj_size) {
 	} else {
 		f = 0.;
 	}
-	float score = f;
+	float score = f * weight[obj_tag];
 	return score;
 }
 
 float Get_Pos_Score(int disk_id, int pos, int time) {
 	int obj_id = disk[disk_id].d[pos].first;	
 	int obj_size = objects[obj_id].size;
+	int obj_tag = objects[obj_id].tag;
 	float score = 0;
 
 	if (objects[obj_id].lock != -1 && objects[obj_id].lock != disk_id) {
@@ -524,13 +603,13 @@ float Get_Pos_Score(int disk_id, int pos, int time) {
 	
 	// 研究表明，任意取两个查询计算得分的平均值会使得结果变得更好
 	int qry_id = *(query[obj_id].begin());  
-	float a = Value_Function(requests[qry_id].query_time, timestamp, obj_size);
+	float a = Value_Function(requests[qry_id].query_time, timestamp, obj_size, obj_tag);
 	float b = 0;
 	if (query[obj_id].size() == 1) {
 		b = a;
 	} else {
 		qry_id = *(next(query[obj_id].begin()));
-		b = Value_Function(requests[qry_id].query_time, timestamp, obj_size);
+		b = Value_Function(requests[qry_id].query_time, timestamp, obj_size, obj_tag);
 	}
 	
 	score = (a + b) / 2 * query[obj_id].size();
@@ -931,7 +1010,17 @@ void Process(int i) {
 	disk[i].Cal_Score();
 }
 
-void Lock(int disk_id) {
+void Lock(int disk_id, bool all_color) {
+	// if (all_color) {
+	// 	// cerr << disk[disk_id].color_tag[disk[disk_id].head] << " is locked by " << disk_id << endl;
+	// 	for (int idx = disk[disk_id].head; disk[disk_id].color_tag[idx] == disk[disk_id].color_tag[disk[disk_id].head]; idx = (idx + 1) % V) {
+	// 		int obj_id = disk[disk_id].d[idx].first;
+	// 		if (obj_id == -1) continue;
+	// 		objects[obj_id].lock = disk_id; // here
+	// 		objects[obj_id].lock_time = timestamp;
+	// 	}
+	// 	return;
+	// }
 	for (int cnt = LOCK_UNITS, idx = disk[disk_id].head; cnt--; idx = (idx + 1) % V) {
 		int obj_id = disk[disk_id].d[idx].first;
 		if (obj_id == -1) continue;
@@ -1023,7 +1112,7 @@ void show(string name, int &cnt) {
 void Move() {
 	// show("jump_fre", jump_cnt);
 	vector<int> finish_qid;
-	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0) {
+	if (timestamp % UPDATE_DISK_SCORE_FREQUENCY == 0 && timestamp >= 10) {
 		// for (int i = 0; i < N; i++) {
 		// 	Process(i);
 		// }
@@ -1083,6 +1172,52 @@ void Move() {
 		// 	continue;
 		// }
 
+		if (disk[i].working != -1) {
+			if (disk[i].color_tag[disk[i].head] != disk[i].working) {
+				int jump_to = -1;
+				for (auto idx : disk[i].color_start) {
+					if (disk[i].color_tag[idx] == disk[i].working) {
+						jump_to = idx;
+						break;
+					}
+				}
+				assert(jump_to != -1);
+				jump_cnt++;
+				disk[i].head = jump_to;
+				moves[i] = "j " + to_string(jump_to + 1);
+				pre_move[i] = 'j';
+				pre_cost[i] = 0;
+				Lock(i, true);
+				pre_jump[i] = timestamp;
+			} else {
+				while (step) {
+					auto [obj_id, obj_part] = disk[i].d[disk[i].head];
+					int cost = INF;
+					if (pre_move[i] == 'r') {
+						cost = max(16, (int)ceil(pre_cost[i] * 0.8));
+					} else {
+						cost = 64;
+					}
+					if (step < cost) {
+						break;
+					}
+					read(i);
+					move += 'r';
+					step -= cost;
+					pre_cost[i] = cost;
+					pre_move[i] = move.back();
+					disk[i].head = (disk[i].head + 1) % V;
+					if (objects[obj_id].lock == i) {
+						objects[obj_id].lock = -1;
+						objects[obj_id].lock_time = 0;
+					}
+				}
+				move += '#';
+				moves[i] = move;
+			}
+			continue;
+		}
+
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
 		// if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY) && timestamp - pre_jump[i] > JUMP_BIAS) {
 		if (disk[i].cur_score < disk[i].max_score && timestamp - pre_jump[i] > JUMP_BIAS) {
@@ -1092,7 +1227,7 @@ void Move() {
 			moves[i] = "j " + to_string(jump_to + 1);
 			pre_move[i] = 'j';
 			pre_cost[i] = 0;
-			Lock(i);
+			Lock(i, false);
 			pre_jump[i] = timestamp;
 			continue;
 		}
@@ -1180,6 +1315,41 @@ void Move() {
 
 
 void Solve() {	
+
+	if (timestamp % FRE_PER_SLICING == 1 && timestamp / FRE_PER_SLICING + 1 <= (T + FRE_PER_SLICING - 1) / FRE_PER_SLICING) {
+		int epoch = timestamp / 1800 + 1;
+		// for (int i = 0; i < N; i++) {
+		// 	disk[i].working = -1;
+		// }
+		// for (auto hot_tag : hot_tags[epoch]) {
+		// 	int working_disk = random_write_disk[hot_tag][rng() % 3];
+		// 	while (disk[working_disk].working != -1) {
+		// 		working_disk = random_write_disk[hot_tag][rng() % 3];
+		// 	}
+		// 	disk[working_disk].working = hot_tag;
+		// }
+		// float tot = 0;
+		// for (int i = 1; i <= MAX_TAG; i++) {
+		// 	tot += fre_read[i][timestamp / FRE_PER_SLICING + 1];
+		// }
+		// for (int i = 1; i <= MAX_TAG; i++) {
+		// 	weight[i] = 1 + fre_read[i][timestamp / FRE_PER_SLICING + 1] / tot * 10;
+		// }
+		// auto pre_fre = query_times;
+		// for (int i = 1; i <= MAX_TAG; i++) {
+		// 	query_times[i] *= weight[i];
+		// }
+		// for (int i = 0; i < N; i++) {
+		// 	disk[i].Color();
+		// }
+		// query_times = pre_fre;
+		// weight.assign(MAX_TAG + 1, 1.);
+		// for (int i = 1; i <= MAX_TAG; i++) {
+		// 	cerr << weight[i] << ' ';
+		// }
+		// cerr << endl;
+	}
+	
 	Delete_Action();
 	Write_Action();
 	Read_Action();
