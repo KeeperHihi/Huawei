@@ -16,7 +16,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -28,11 +28,36 @@ const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #else
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
-#define BLOCK_NUM (18) // 这个参数调大一点可能会变好，比如 20
+#define BLOCK_NUM (20) // 这个参数调大一点可能会变好，比如 20
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
-#define LOCK_UNITS (1583)
+#define LOCK_UNITS (1650)
 #define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
 #endif
+
+// BLOCK_NUM = 20
+// LOCK_UNITS = 1800
+// DROP_SCORE = 0.05
+// LOCK_TIMES += 3 = JUMP_BIAS 111
+// BLOCK_NUM = 25 111
+//
+// BLOCK_NUM = 25, LOCK_TIMES += 3 = JUMO_BIAS
+// BLOCK_NUM = 25, LOCK_TIMES += 5 = JUMO_BIAS
+// 莫名其妙 Write
+// Hot_Tag
+// 重新染色
+// PREDICT = 3
+// JUMP_BIAS = LOCK_TIMES + 5
+// LOCK_UNITS = 1650, JUMP_BIAS = LOCK_TIMES + 5
+// LOCK_UNITS = 1650
+// Write, LOCK_UNITS = 1650
+// Write, LOCK_TIMES = /20
+// LOCK_TIMES = /20
+// LOCK_UNITS = 1650
+// LOCK_UNITS = 1750
+// LOCK_UNITS = 1850
+// 1650, BLOCK_NUM = 21, UPDATE_DISK = 8
+// 1638, BLOCK_NUM = 22, UPDATE_DISK = 8
+
 
 #define MAX_TAG (16)
 #define MAX_SIZE (5)
