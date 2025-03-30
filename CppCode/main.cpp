@@ -21,7 +21,7 @@ using namespace std;
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5754)
-#define BLOCK_NUM (15)
+#define BLOCK_NUM (18)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #define LOCK_UNITS (556)
 #define LOCK_TIMES (LOCK_UNITS / (350 / 16))
@@ -58,7 +58,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
 #define EPS (1e-6)
-#define PREDICT (1) // 没道理，因为一轮扫不到一块
+#define PREDICT (2) // 没道理，因为一轮扫不到一块
 
 #define DROP_SCORE (0)
 #define DECIDE_CONTINUE_READ (10)
