@@ -16,7 +16,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
@@ -60,7 +60,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define EPS (1e-6)
 #define PREDICT (2) // 没道理，因为一轮扫不到一块
 
-#define DROP_SCORE (0)
+#define DROP_SCORE (0.05)
 #define DECIDE_CONTINUE_READ (10)
 #define TRASH_PERPORTION (0.05)
 
