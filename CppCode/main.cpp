@@ -10,8 +10,7 @@
 // 存放 obj 的时候，优先放到当前磁头的前方？便于快速读取到
 
 // 跳转到那之后第一个有东西的地方？
-
-// 现在这一发是调了一些参数的，即将交一发把 LOCK_UNITS 按比例调成 1600 的
+// 现在这一发是调了一些参数的，即将交一发把 LOCK_UNITS 按比例调成 1600 的，这是核心！！！
 
 
 #include <bits/stdc++.h>
@@ -22,16 +21,16 @@ using namespace std;
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5754)
-#define BLOCK_NUM (15)
+#define BLOCK_NUM (18)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
-#define LOCK_UNITS (500)
+#define LOCK_UNITS (556)
 #define LOCK_TIMES (LOCK_UNITS / (350 / 16))
 #else
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
-#define BLOCK_NUM (15)
+#define BLOCK_NUM (18) // 这个参数调大一点可能会变好
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
-#define LOCK_UNITS (1600)
+#define LOCK_UNITS (1583)
 #define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
 #endif
 
@@ -48,7 +47,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 // 60 : 40 : 35 : 18 : 8     sum = 161
 
 // #define JUMP_FREQUENCY (8)
-#define JUMP_BIAS (LOCK_TIMES)
+#define JUMP_BIAS (LOCK_TIMES + 3)
 
 #define MAX_REQUEST_NUM (30000000)
 #define MAX_OBJECT_NUM (100000)
