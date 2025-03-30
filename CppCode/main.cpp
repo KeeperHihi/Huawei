@@ -21,14 +21,14 @@ using namespace std;
 #ifdef DEBUG
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (5754)
-#define BLOCK_NUM (18)
+#define BLOCK_NUM (15)
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #define LOCK_UNITS (556)
 #define LOCK_TIMES (LOCK_UNITS / (350 / 16))
 #else
 #define UPDATE_DISK_SCORE_FREQUENCY (10)
 #define MAX_DISK_SIZE (16384)
-#define BLOCK_NUM (18) // 这个参数调大一点可能会变好
+#define BLOCK_NUM (18) // 这个参数调大一点可能会变好，比如 20
 const int BLOCK_SIZE = MAX_DISK_SIZE / BLOCK_NUM;
 #define LOCK_UNITS (1583)
 #define LOCK_TIMES (LOCK_UNITS / (1000 / 16))
@@ -58,7 +58,7 @@ const int DISK_SPLIT_5 = DISK_SPLIT_BLOCK * 35.7;
 #define MAX_WRITE_LEN (100005)
 #define INF (1000000000)
 #define EPS (1e-6)
-#define PREDICT (2) // 没道理，因为一轮扫不到一块
+#define PREDICT (1) // 没道理，因为一轮扫不到一块
 
 #define DROP_SCORE (0)
 #define DECIDE_CONTINUE_READ (10)
@@ -276,7 +276,7 @@ struct Disk {
 			float sc = 0;
 			char pre_mov = 'j';
 			int pre_cos = 0;
-			for (int t = timestamp + 1; t < timestamp + PREDICT; t++) {
+			for (int t = timestamp; t < timestamp + PREDICT; t++) {
 				// auto [score, idx] = Simulate(disk_id, i, t, pre_mov, pre_cos);
 				// i = idx;
 				// sc += score;
@@ -1371,7 +1371,7 @@ void Move() {
 
 		// 方案一：比较往前走两个块根跳转在走一个块的价值决定是否 jump
 		// if (disk[i].cur_score < disk[i].max_score && Random_Appear(JUMP_FREQUENCY) && timestamp - pre_jump[i] > JUMP_BIAS) {
-		if (disk[i].cur_score < disk[i].max_score && timestamp - pre_jump[i] > JUMP_BIAS) {
+		if (disk[i].cur_score * 2 < disk[i].max_score && timestamp - pre_jump[i] > JUMP_BIAS) {
 			int jump_to = disk[i].max_score_pos;
 			int help = BLOCK_SIZE;
 			while (help-- && Get_Pos_Score(i, jump_to, timestamp + 1) <= DROP_SCORE) {
@@ -1477,12 +1477,12 @@ void Move() {
 			pre_move[i] = move.back();
 			disk[i].head = (disk[i].head + 1) % V;
 		}
-		// while (move.back() != 'r' && step && Get_Pos_Score(i, disk[i].head, timestamp) <= DROP_SCORE) {
-		// 	move += 'p';
-		// 	step--;
-		// 	pre_move[i] = 'p';
-		// 	disk[i].head = (disk[i].head + 1) % V;
-		// }
+		while (move.back() != 'r' && step && Get_Pos_Score(i, disk[i].head, timestamp) <= DROP_SCORE) {
+			move += 'p';
+			step--;
+			pre_move[i] = 'p';
+			disk[i].head = (disk[i].head + 1) % V;
+		}
 		move += '#';
 		moves[i] = move;
 	}
